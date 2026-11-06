@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bektas.robot'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.bektas.robot'
+        minSdk 26
+        targetSdk 34
+        versionCode 5
+        versionName '1.4'
+    }
+
+    // Ekran ve robot, robot-asistan/www klasöründeki dosyalardır.
+    sourceSets {
+        main {
+            assets.srcDirs = ['../../www']
+        }
+    }
+
+    // Sabit imza (Besi Rasyon ile aynı yöntem): -PimzaDosya verilirse kullanılır.
+    if (project.hasProperty('imzaDosya')) {
+        signingConfigs {
+            sabit {
+                storeFile file(project.property('imzaDosya'))
+                storePassword project.property('imzaParola')
+                keyAlias project.property('imzaAd')
+                keyPassword project.property('imzaParola')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (project.hasProperty('imzaDosya')) signingConfig signingConfigs.sabit
+        }
+        release {
+            minifyEnabled false
+            if (project.hasProperty('imzaDosya')) signingConfig signingConfigs.sabit
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

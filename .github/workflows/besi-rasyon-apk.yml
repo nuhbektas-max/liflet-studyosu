@@ -1,0 +1,149 @@
+# Besi Rasyon Android uygulamasını (APK) derler ve GitHub "Releases" sayfasına koyar.
+name: Besi Rasyon APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'besi-rasyon/**'
+      - '.github/workflows/besi-rasyon-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hesap motoru testleri
+        run: node besi-rasyon/test/model.test.js
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: APK derle
+        env:
+          IMZA_ANAHTAR: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          IMZA_PAROLA: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          extra=""
+          if [ -n "$IMZA_ANAHTAR" ] && [ -n "$IMZA_PAROLA" ]; then
+            echo "$IMZA_ANAHTAR" | base64 -d > "$RUNNER_TEMP/imza.keystore"
+            extra="-PimzaDosya=$RUNNER_TEMP/imza.keystore -PimzaParola=$IMZA_PAROLA -PimzaAd=bektas"
+            echo "Sabit imza anahtari kullaniliyor."
+          else
+            echo "::warning::ANDROID_KEYSTORE_B64 / ANDROID_KEYSTORE_PASS tanimli degil; APK gecici anahtarla imzalaniyor (guncelleme eski surumun uzerine kurulmayabilir)."
+          fi
+          gradle -p besi-rasyon/android assembleDebug --no-daemon $extra
+
+      - name: APK'yı adlandır
+        run: |
+          cp besi-rasyon/android/app/build/outputs/apk/kullanici/debug/app-kullanici-debug.apk BesiRasyon-4.3.apk
+          cp besi-rasyon/android/app/build/outputs/apk/yonetici/debug/app-yonetici-debug.apk BesiRasyon-Yonetici-4.3.apk
+
+      # Son APK'yı "besi-rasyon-apk-latest" git etiketinde de sakla (hiçbir dala dokunmaz);
+      # böylece APK, yalnızca git erişimi olan ortamlardan da alınabilir.
+      - name: APK'yı git etiketine koy
+        run: |
+          d=$(mktemp -d)
+          cp BesiRasyon-4.3.apk BesiRasyon-Yonetici-4.3.apk "$d/"
+          cd "$d"
+          git init -q
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Besi Rasyon APK (derleme ${{ github.run_number }})"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" HEAD:refs/tags/besi-rasyon-apk-latest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BesiRasyon-apk
+          path: |
+            BesiRasyon-4.3.apk
+            BesiRasyon-Yonetici-4.3.apk
+
+  # Windows kurulum dosyası (.exe): aynı www/ dosyalarını Electron ile paketler; release işi APK ile birlikte yayınlar.
+  windows:
+    runs-on: windows-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bağımlılıkları kur
+        working-directory: besi-rasyon/windows
+        run: npm ci
+
+      # Uygulamayı gerçekten açar: rasyon hesaplanır, alım rehberi ve dönem planı oluşur, PDF üretilir.
+      - name: Uygulama sınaması
+        working-directory: besi-rasyon/windows
+        shell: bash
+        run: |
+          node hazirla.js
+          timeout 180 npx electron . --smoke-test || true
+          cat smoke-result.json
+          node -e "
+            const r = require('./smoke-result.json');
+            const ok = r.masaustu && r.kilit && r.rehber && r.donem && r.pdfBayt > 10000 && r.kopyala === 'Metni kopyala';
+            if (!ok) { console.error('Sınama başarısız'); process.exit(1); }
+            console.log('Sınama geçti:', r.maliyet, 'PDF', r.pdfBayt, 'bayt');"
+
+      - name: Kurulum dosyasını derle
+        working-directory: besi-rasyon/windows
+        run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      # Kurulum dosyasını "besi-rasyon-exe-latest" git etiketinde de sakla (APK ile aynı neden).
+      - name: Kurulum dosyasını git etiketine koy
+        continue-on-error: true
+        shell: bash
+        run: |
+          d=$(mktemp -d)
+          cp besi-rasyon/windows/dist/BesiRasyon-Kurulum-*.exe "$d/"
+          cd "$d"
+          git init -q
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Besi Rasyon Windows (derleme ${{ github.run_number }})"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" HEAD:refs/tags/besi-rasyon-exe-latest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BesiRasyon-windows
+          path: |
+            besi-rasyon/windows/dist/BesiRasyon-Kurulum-*.exe
+            besi-rasyon/windows/dist/BesiRasyon-Tasinabilir-*.exe
+
+  # Sürümler değiştirilemez (immutable) olduğu için APK ve exe tek seferde yayınlanır.
+  release:
+    runs-on: ubuntu-latest
+    needs: [build, windows]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: art
+          merge-multiple: true
+      - run: ls -la art
+      - name: Release oluştur
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: besi-rasyon-v4.3-${{ github.run_number }}
+          name: Besi Rasyon 4.3 (derleme ${{ github.run_number }})
+          body: |
+            Telefona kurmak için BesiRasyon-4.3.apk dosyasını indirip açın (kullanıcılar için).
+            BesiRasyon-Yonetici-4.3.apk yalnızca lisans veren yönetici içindir; ayrı bir uygulama olarak kurulur ve yönetici şifresiyle açılır.
+            Android "bilinmeyen kaynaklardan uygulama yükleme" izni isterse izin verin.
+            Windows bilgisayara kurmak için BesiRasyon-Kurulum-4.3.0.exe dosyasını indirip çalıştırın. Kurmadan kullanmak için BesiRasyon-Tasinabilir-4.3.0.exe (USB bellekte de çalışır).
+            Windows "bilgisayarınızı korudu" uyarısı gösterirse "Ek bilgi" ve "Yine de çalıştır" seçin (dosya imzasızdır).
+          target_commitish: ${{ github.sha }}
+          files: art/*

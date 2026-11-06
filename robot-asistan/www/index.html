@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Robo Asistan</title>
+<style>
+  :root { --bg:#0B1220; --panel:#131C2E; --line:#22304A; --txt:#E6EDF7; --dim:#8FA0BC; --accent:#4FC3FF; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:linear-gradient(165deg,#3a1b8f 0%,#1c2a9c 52%,#08308f 100%) fixed; color:var(--txt); font:16px/1.4 system-ui,sans-serif; overflow:hidden; }
+  #app { height:100%; display:flex; flex-direction:column; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  #top { display:flex; justify-content:space-between; align-items:center; padding:10px 14px; }
+  #chip { font-size:13px; color:#c9d6ff; border:1px solid #4a5fc4; background:rgba(10,20,70,.35); border-radius:99px; padding:4px 12px; min-width:92px; text-align:center; }
+  #chip.listening { color:#6EE7A8; border-color:#2d6b4d; }
+  #chip.thinking { color:#FFB347; border-color:#7a5420; }
+  #chip.speaking { color:var(--accent); border-color:#1f5f80; }
+  .ib { background:rgba(10,20,70,.35); border:1px solid #4a5fc4; color:var(--txt); border-radius:12px; width:42px; height:42px; font-size:20px; }
+  #stage { flex:1; min-height:0; position:relative; }
+  #robot { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #sub { min-height:92px; max-height:150px; overflow:auto; padding:6px 22px; text-align:center; font-size:17px; color:var(--txt); }
+  #sub .me { color:#aebcf0; font-size:14px; display:block; margin-bottom:4px; }
+  #bar { display:flex; align-items:center; justify-content:center; gap:18px; padding:8px 16px 18px; }
+  #mic { width:84px; height:84px; border-radius:50%; border:0; background:var(--accent); color:#06202e; font-size:34px; box-shadow:0 0 0 0 rgba(79,195,255,.5); }
+  #mic.on { background:#6EE7A8; animation:pulse 1.2s infinite; }
+  #mic.busy { background:#FFB347; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(110,231,168,.5)} 100%{box-shadow:0 0 0 22px rgba(110,231,168,0)} }
+  #conv { display:flex; flex-direction:column; align-items:center; font-size:11px; color:var(--dim); gap:4px; }
+  #conv.active .ib { background:#1c3a52; border-color:var(--accent); }
+  #sheet { position:fixed; inset:0; background:rgba(5,9,16,.86); display:none; align-items:flex-end; z-index:5; }
+  #sheet.show { display:flex; }
+  #card { background:var(--panel); width:100%; border-radius:18px 18px 0 0; padding:18px 18px calc(18px + env(safe-area-inset-bottom)); max-height:92%; overflow:auto; }
+  #card h2 { margin:0 0 12px; font-size:18px; }
+  label { display:block; font-size:13px; color:var(--dim); margin:12px 0 4px; }
+  input[type=text],input[type=password],select { width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:#0d1626; color:var(--txt); font-size:16px; }
+  input[type=range] { width:100%; }
+  .row { display:flex; gap:10px; margin-top:18px; }
+  .btn { flex:1; padding:12px; border-radius:12px; border:0; font-size:16px; background:var(--accent); color:#06202e; font-weight:600; }
+  .btn.sec { background:#1b2740; color:var(--txt); }
+  .hint { font-size:12px; color:var(--dim); margin-top:6px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <button class="ib" id="btnSet" aria-label="Ayarlar">⚙</button>
+    <div id="chip">Hazır</div>
+    <button class="ib" id="btnClear" aria-label="Sohbeti temizle">↺</button>
+  </div>
+
+  <div id="stage">
+    <canvas id="robot"></canvas>
+  </div>
+
+  <div id="sub"></div>
+
+  <div id="bar">
+    <div id="conv"><button class="ib" id="btnConv" aria-label="Sürekli sohbet">∞</button><span>Sürekli</span></div>
+    <button id="mic" aria-label="Konuş">🎤</button>
+    <div style="width:42px"></div>
+  </div>
+</div>
+
+<div id="sheet"><div id="card">
+  <h2>Ayarlar</h2>
+  <label>Yapay zekâ sağlayıcısı</label>
+  <select id="fProv"><option value="gemini">Google Gemini (ücretsiz kota var)</option><option value="claude">Anthropic Claude (ücretli)</option></select>
+  <label>Gemini API anahtarı</label>
+  <input type="password" id="fGKey" placeholder="AIza..." autocomplete="off">
+  <div class="hint">aistudio.google.com/apikey adresinden ücretsiz alınır.</div>
+  <label>Gemini modeli</label>
+  <input type="text" id="fGModel" autocomplete="off">
+  <label>Anthropic API anahtarı</label>
+  <input type="password" id="fKey" placeholder="sk-ant-..." autocomplete="off">
+  <label>Claude modeli</label>
+  <input type="text" id="fModel" autocomplete="off">
+  <div class="hint">Anahtarlar yalnızca bu telefonda, uygulamanın özel alanında saklanır.</div>
+  <label>Konuşma dili (ör. tr-TR, en-US)</label>
+  <input type="text" id="fLang" autocomplete="off">
+  <label>Konuşma hızı: <span id="vRate"></span></label>
+  <input type="range" id="fRate" min="0.6" max="1.6" step="0.05">
+  <label>Ses inceliği: <span id="vPitch"></span></label>
+  <input type="range" id="fPitch" min="0.6" max="1.6" step="0.05">
+  <div class="row"><button class="btn sec" id="fCancel">Vazgeç</button><button class="btn" id="fSave">Kaydet</button></div>
+</div></div>
+
+<script src="varsayilan.js"></script>
+<script>
+'use strict';
+/* ====== Ortak ====== */
+const A = window.RobotAndroid || null;
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = A ? A.getPref(k) : localStorage.getItem('robo.' + k); return (v == null || v === '') ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { if (A) A.setPref(k, String(v)); else localStorage.setItem('robo.' + k, String(v)); } catch (e) {} }
+};
+const cfg = {
+  provider: store.get('provider', 'gemini'), key: store.get('key', ''), model: store.get('model', 'claude-sonnet-5-5'),
+  gkey: store.get('gkey', (window.VARSAYILAN || {}).gkey || ''), gmodel: (g => (g === '' || g === 'gemini-2.5-flash' || g === 'gemini-flash-lite-latest') ? 'gemini-3.8-flash' : g)(store.get('gmodel', '')),
+  lang: store.get('lang', 'tr-TR'), rate: parseFloat(store.get('rate', '1')), pitch: parseFloat(store.get('pitch', '1')),
+  conv: store.get('conv', '0') === '1'
+};
+
+/* ====== Etiket ayrıştırma: <gesture="nod" emotion="happy"> ve [happy] ====== */
+const TAG = /<([^<>]*=[^<>]*)>|\[(happy|curious|alert|witty|neutral|sad|surprised)\]/gi;
+const ATTR = /(\w+)\s*=\s*"([^"]*)"/g;
+function parseTags(raw) {
+  const cues = []; let out = ''; let last = 0; let m;
+  TAG.lastIndex = 0;
+  while ((m = TAG.exec(raw)) !== null) {
+    out += raw.slice(last, m.index); last = m.index + m[0].length;
+    const cue = { at: out.length };
+    if (m[2]) cue.emotion = m[2].toLowerCase();
+    else { let a; ATTR.lastIndex = 0; while ((a = ATTR.exec(m[1])) !== null) { const k = a[1].toLowerCase(); if (['gesture', 'emotion', 'gaze'].includes(k)) cue[k] = a[2].toLowerCase(); } }
+    cues.push(cue);
+  }
+  out += raw.slice(last);
+  return { text: out.replace(/\s{2,}/g, ' ').trim(), cues };
+}
+
+/* ====== Robot: durum ve animasyon (kontur çizgili 3D yüz) ====== */
+const EMO = { // smile (+gülümse/-üzgün), brow/browR (yukarı +), bin (iç kaş yukarı), furrow (çatık), eye (açıklık), cheek, jaw (çene)
+  neutral:   { smile: .1,  brow: 0,   browR: 0,   bin: 0,  furrow: 0, eye: 1,    cheek: 0,  jaw: 0 },
+  happy:     { smile: .95, brow: .2,  browR: .2,  bin: 0,  furrow: 0, eye: .78,  cheek: 1,  jaw: .05 },
+  curious:   { smile: .1,  brow: .3,  browR: 1,   bin: .5, furrow: 0, eye: 1.08, cheek: 0,  jaw: 0 },
+  alert:     { smile: 0,   brow: .9,  browR: .9,  bin: .3, furrow: 0, eye: 1.35, cheek: 0,  jaw: .08 },
+  witty:     { smile: .6,  brow: .15, browR: -.55, bin: 0, furrow: 0, eye: .95,  cheek: .3, jaw: 0 },
+  sad:       { smile: -.7, brow: -.1, browR: -.1, bin: 1,  furrow: 0, eye: .8,   cheek: 0,  jaw: 0 },
+  surprised: { smile: 0,   brow: 1,   browR: 1,   bin: .2, furrow: 0, eye: 1.5,  cheek: 0,  jaw: .55 }
+};
+const STATE_COL = { idle: [96, 150, 255], listening: [90, 255, 215], thinking: [190, 140, 255], speaking: [110, 215, 255] };
+const R = {
+  state: 'idle', t: 0,
+  emo: 'neutral', emoUntil: 0,
+  cur: { smile: .1, brow: 0, browR: 0, bin: 0, furrow: 0, jaw: 0, eye: 1, cheek: 0, gx: 0, gy: 0, tilt: 0, nod: 0, lean: 0, shrug: 0, wave: 0,
+         mouthOpen: 0, mouthWide: 0, mouthRound: 0, yaw: 0, pitch: 0, roll: 0, blinkV: 0, flash: 0 },
+  col: STATE_COL.idle.slice(),
+  gaze: { x: 0, y: 0 }, gazeUntil: 0, drift: { x: 0, y: 0, next: 0 },
+  blink: 0, nextBlink: 2, gest: null,
+  say: null
+};
+
+function setState(s) {
+  R.state = s;
+  const chip = $('chip');
+  chip.className = s === 'idle' ? '' : s;
+  chip.textContent = { idle: 'Hazır', listening: 'Dinliyorum', thinking: 'Düşünüyor', speaking: 'Konuşuyor' }[s];
+  const mic = $('mic');
+  mic.className = s === 'listening' ? 'on' : (s === 'thinking' ? 'busy' : '');
+  mic.textContent = s === 'speaking' ? '■' : '🎤';
+  if (s === 'listening') { R.gaze = { x: 0, y: 0 }; gesture('headtilt'); }
+  if (s === 'thinking') { R.gaze = { x: .7, y: -.8 }; gesture('chin'); }
+  if (s === 'speaking') R.gaze = { x: 0, y: 0 };
+  if (s === 'idle') R.gaze = { x: 0, y: 0 };
+}
+function setEmotion(name) { if (!EMO[name]) name = 'neutral'; R.emo = name; R.emoUntil = R.t + 6; R.cur.flash = 1; }
+function gesture(name) { R.gest = { name, t0: R.t }; }
+function applyCue(c) {
+  if (c.emotion) setEmotion(c.emotion);
+  if (c.gesture) gesture(c.gesture);
+  if (c.gaze) { R.gaze = c.gaze === 'away' ? { x: .9, y: .1 } : c.gaze === 'up' ? { x: 0, y: -.9 } : { x: 0, y: 0 }; R.gazeUntil = R.t + 1.6; }
+}
+
+const VIS = (ch) => { // open, wide, round
+  ch = ch.toLowerCase();
+  if ('aâ'.includes(ch)) return [.85, 0, 0];
+  if (ch === 'e') return [.5, .6, 0];
+  if ('ıiî'.includes(ch)) return [.25, .85, 0];
+  if ('oö'.includes(ch)) return [.5, 0, .7];
+  if ('uü'.includes(ch)) return [.2, 0, 1];
+  if ('pbm'.includes(ch)) return [0, 0, 0];
+  if ('fv'.includes(ch)) return [.12, .2, 0];
+  if (' .,!?;:\n'.includes(ch)) return [0, 0, 0];
+  return [.28, .1, 0];
+};
+
+/* ---- Yüzün geometrisi: yatay kesitler (kontur çizgileri) ---- */
+const cv = $('robot'), g = cv.getContext('2d');
+let CW = 1, CH = 1, DPR = 1;
+function resizeCanvas() {
+  const r = cv.getBoundingClientRect(); DPR = Math.min(2, window.devicePixelRatio || 1);
+  CW = Math.max(1, Math.round(r.width * DPR)); CH = Math.max(1, Math.round(r.height * DPR)); cv.width = CW; cv.height = CH;
+}
+if (window.ResizeObserver) new ResizeObserver(resizeCanvas).observe(cv);
+window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+// Kafa profili: yükseklik (y) → yarı genişlik (x) ve yarı derinlik (z). Yüz +z yönüne bakar.
+const PY = [1.24, 1.21, 1.15, 1.05, .92, .72, .40, .05, -.30, -.60, -.86, -1.06, -1.30, -1.80];
+const PX = [0, .22, .40, .55, .66, .77, .83, .82, .77, .66, .50, .42, .42, .46];
+const PZ = [0, .26, .48, .65, .78, .92, .99, .98, .93, .83, .66, .50, .46, .50];
+function prof(arr, y) {
+  let i = 0; while (i < PY.length - 2 && y < PY[i + 1]) i++;
+  const t = (PY[i] - y) / (PY[i] - PY[i + 1]);
+  const p0 = arr[Math.max(0, i - 1)], p1 = arr[i], p2 = arr[i + 1], p3 = arr[Math.min(arr.length - 1, i + 2)];
+  const t2 = t * t, t3 = t2 * t;
+  return Math.max(0, .5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3));
+}
+const G = (v, c, s) => { const d = (v - c) / s; return Math.exp(-.5 * d * d); };
+function featStatic(y, th) { // burun, kaş, göz çukuru, elmacık, çene, kulak
+  const a = Math.abs(th); let d = 0;
+  d += .30 * G(y, -.30, .15) * G(th, 0, .09) + .13 * G(y, .0, .17) * G(th, 0, .07);
+  d += .10 * G(y, -.44, .05) * (G(th, .18, .06) + G(th, -.18, .06));
+  d += .13 * G(y, .30, .065) * G(th, 0, .5);
+  d -= .10 * G(y, .14, .09) * (G(th, .38, .15) + G(th, -.38, .15));
+  d += .06 * G(y, -.25, .2) * (G(th, .58, .25) + G(th, -.58, .25));
+  d += .15 * G(y, -.98, .11) * G(th, 0, .28);
+  d += .12 * G(y, -.05, .2) * G(a, 1.85, .17);
+  return d;
+}
+const N_TH = 96, STEP = (Math.PI * 2) / N_TH, Y0 = -1.78, Y1 = 1.235, DY = .04;
+const SL = []; // kesitler
+(function build() {
+  let idx = 0;
+  for (let y = Y0; y <= Y1; y += DY, idx++) {
+    const rx = prof(PX, y), rz = prof(PZ, y);
+    const D = new Float32Array(N_TH), NX = new Float32Array(N_TH), NZ = new Float32Array(N_TH), TH = new Float32Array(N_TH);
+    for (let i = 0; i < N_TH; i++) {
+      const th = -Math.PI + i * STEP; TH[i] = th;
+      D[i] = featStatic(y, th);
+      let nx = Math.sin(th) / Math.max(.05, rx), nz = Math.cos(th) / Math.max(.05, rz); const l = Math.hypot(nx, nz) || 1;
+      NX[i] = nx / l; NZ[i] = nz / l;
+    }
+    SL.push({ y, rx, rz, D, NX, NZ, TH, odd: idx % 2 === 1,
+              fy: Math.pow(Math.min(1, Math.max(0, (y - Y0) / .6)), 1.3),
+              mouthZone: y < -.45 && y > -1.0, browZone: y > .1 && y < .5 });
+  }
+})();
+const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const EYE_Y = .14, EYE_TH = .38;
+const EYES = [1, -1].map(sg => {
+  const th = sg * EYE_TH, rx = prof(PX, EYE_Y), rz = prof(PZ, EYE_Y), d = featStatic(EYE_Y, th);
+  return { th, x: (rx + d) * Math.sin(th), y: EYE_Y, z: (rz + d) * Math.cos(th) + .012, tx: Math.cos(th), tz: -Math.sin(th) };
+});
+
+const NS = SL.length;
+const QV = new Float32Array(NS * N_TH), QX = new Float32Array(NS * N_TH), QY = new Float32Array(NS * N_TH);
+const MER = []; for (let i = 0; i < N_TH; i++) { const th = -Math.PI + i * STEP; if (i % 4 === 0 && Math.abs(th) < 1.05) MER.push(i); }
+
+// Yüzeyin dudak bölgesindeki derinliği (statik hatlar + dudak çıkıntıları)
+function lipW(c) { return .2 + c.mouthWide * .08 - c.mouthRound * .07; }
+function depth(yp, th, c) {
+  const w = lipW(c), amp = 1 + c.mouthRound * .5;
+  return featStatic(yp, th) + amp * (.10 * G(yp, -.64, .04) + .11 * G(yp, -.78, .05)) * G(th, 0, w) - .07 * G(yp, -.70, .022) * G(th, 0, w * 1.1);
+}
+// Bir kesit noktasının derinlik ve yükseklik düzeltmesi (çene, gülümseme, kaş, elmacık)
+function shape(yp, th, d, c, out) {
+  const jawv = Math.min(1.3, Math.max(c.mouthOpen, c.jaw));
+  let y = yp - jawv * .18 * sstep(-.68, -.78, yp);
+  if (yp < -.45 && yp > -1.0 && th > -.7 && th < .7) {
+    const w = lipW(c), amp = 1 + c.mouthRound * .5;
+    d += amp * (.10 * G(yp, -.64, .04) + .11 * G(yp, -.78, .05)) * G(th, 0, w) - .07 * G(yp, -.70, .022) * G(th, 0, w * 1.1);
+    y += c.smile * .075 * G(yp, -.70, .09) * (G(th, .24, .11) + G(th, -.24, .11));
+    d += c.cheek * .03 * G(yp, -.3, .2) * (G(th, .58, .25) + G(th, -.58, .25));
+    y += c.cheek * .03 * G(yp, -.3, .15) * (G(th, .58, .2) + G(th, -.58, .2));
+  }
+  if (yp > .1 && yp < .5 && th > -.9 && th < .9) y += .085 * G(yp, .30, .1) * (c.brow * G(th, .35, .3) + c.browR * G(th, -.35, .3));
+  out[0] = d; out[1] = y;
+}
+
+function draw(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, CW, CH);
+  const c = R.cur;
+  const unit = Math.min(CH / 2.95, CW / 2.15), cx0 = CW / 2 - c.yaw * unit * .2, cy0 = CH * .5;
+  const cyw = Math.cos(c.yaw), syw = Math.sin(c.yaw), cp = Math.cos(c.pitch), sp = Math.sin(c.pitch), cr = Math.cos(c.roll), sr = Math.sin(c.roll);
+  const jawv = Math.min(1.3, Math.max(c.mouthOpen, c.jaw));
+  const col = R.col, white = .35;
+  const core = `${Math.round(col[0] + (255 - col[0]) * white)},${Math.round(col[1] + (255 - col[1]) * white)},${Math.round(col[2] + (255 - col[2]) * white)}`;
+  const glow = `${Math.round(col[0])},${Math.round(col[1])},${Math.round(col[2])}`;
+  const boost = 1 + c.flash * .5;
+
+  const proj = (x, y, z, out) => {
+    const x1 = x * cyw + z * syw, z1 = -x * syw + z * cyw;
+    const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
+    const x3 = x1 * cr - y2 * sr, y3 = x1 * sr + y2 * cr;
+    const p = 1 / (1 - z2 / 6);
+    out[0] = cx0 + x3 * unit * p; out[1] = cy0 - (y3 + .18) * unit * p; return z2;
+  };
+  const facing = th => sstep(.05, .5, (-Math.sin(th) * syw + Math.cos(th) * cyw) * cp);
+
+  const pt = [0, 0], sh = [0, 0];
+  // 1) kesit noktalarını hesapla
+  for (let s = 0; s < NS; s++) {
+    const S = SL[s];
+    let f = .9;
+    if (R.state === 'thinking') f = Math.min(1, Math.max(.25, .55 + .55 * Math.sin(S.y * 7 - t * 7)));
+    else if (R.state === 'speaking') f = .85 + .15 * Math.sin(t * 8 - S.y * 3);
+    else if (R.state === 'listening') f = .9 + .1 * Math.sin(t * 3);
+    f *= S.fy * boost;
+    for (let i = 0; i < N_TH; i++) {
+      const o = s * N_TH + i;
+      const nz = (-S.NX[i] * syw + S.NZ[i] * cyw) * cp;
+      const vis = sstep(.02, .5, nz) * f;
+      if (vis < .05) { QV[o] = 0; continue; }
+      const th = S.TH[i];
+      shape(S.y, th, S.D[i], c, sh);
+      const d = sh[0], y = sh[1];
+      proj((S.rx + d) * Math.sin(th), y, (S.rz + d) * Math.cos(th), pt);
+      QV[o] = vis; QX[o] = pt[0]; QY[o] = pt[1];
+    }
+  }
+  // 2) yollar: yatay kesitler (düz/kesikli) ve dikey kontur çizgileri
+  const PS = [], PD = [], PM = [];
+  for (let q = 0; q < 4; q++) { PS.push(new Path2D()); PD.push(new Path2D()); PM.push(new Path2D()); }
+  for (let s = 0; s < NS; s++) {
+    const set = SL[s].odd ? PD : PS; let pq = -1, ppx = 0, ppy = 0;
+    for (let k = 0; k <= N_TH; k++) {
+      const o = s * N_TH + (k % N_TH), v = QV[o];
+      if (v < .05) { pq = -1; continue; }
+      const q = Math.min(3, (v * 4) | 0), x = QX[o], y = QY[o];
+      if (pq < 0) set[q].moveTo(x, y); else if (q !== pq) { set[q].moveTo(ppx, ppy); set[q].lineTo(x, y); } else set[q].lineTo(x, y);
+      pq = q; ppx = x; ppy = y;
+    }
+  }
+  for (const i of MER) {
+    let pq = -1, ppx = 0, ppy = 0;
+    for (let s = 0; s < NS; s++) {
+      const o = s * N_TH + i, v = QV[o];
+      if (v < .05) { pq = -1; continue; }
+      const q = Math.min(3, (v * 4) | 0), x = QX[o], y = QY[o];
+      if (pq < 0) PM[q].moveTo(x, y); else if (q !== pq) { PM[q].moveTo(ppx, ppy); PM[q].lineTo(x, y); } else PM[q].lineTo(x, y);
+      pq = q; ppx = x; ppy = y;
+    }
+  }
+  g.globalCompositeOperation = 'lighter'; g.lineCap = 'round'; g.lineJoin = 'round';
+  const dash = [9 * DPR, 5 * DPR], off = -t * (R.state === 'thinking' ? 40 : 14) * DPR;
+  for (const [set, dashed, m] of [[PS, false, 1], [PD, true, 1], [PM, false, .4]]) {
+    g.setLineDash(dashed ? dash : []); g.lineDashOffset = dashed ? off : 0;
+    for (let q = 0; q < 4; q++) {
+      const a = Math.min(1, (q + .6) / 4) * m;
+      g.strokeStyle = `rgba(${glow},${(a * .22).toFixed(3)})`; g.lineWidth = 3.4 * DPR; g.stroke(set[q]);
+      g.strokeStyle = `rgba(${core},${Math.min(1, a * 1.05).toFixed(3)})`; g.lineWidth = (m < 1 ? .9 : 1.25) * DPR; g.stroke(set[q]);
+    }
+  }
+  g.setLineDash([]);
+
+  const line = (pts, vis, w, al) => { // parlak çizgi (ışıltılı)
+    g.beginPath(); pts.forEach((p, k) => k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]));
+    g.strokeStyle = `rgba(${glow},${(vis * al * .3).toFixed(3)})`; g.lineWidth = (w + 3) * DPR; g.stroke();
+    g.strokeStyle = `rgba(${core},${(vis * al).toFixed(3)})`; g.lineWidth = w * DPR; g.stroke();
+  };
+
+  // 3) kaşlar
+  for (const sg of [1, -1]) {
+    const vis = facing(sg * .35); if (vis < .05) continue;
+    const pts = [];
+    for (let k = 0; k <= 9; k++) {
+      const u = k / 9, th = sg * (.13 + u * .52), yp = .31 + .03 * Math.sin(u * Math.PI * .9 + .15);
+      shape(yp, th, featStatic(yp, th) + .02, c, sh);
+      const yy = sh[1] + (c.bin - c.furrow) * (1 - u) * .05 - c.furrow * .02;
+      proj((prof(PX, yp) + sh[0]) * Math.sin(th), yy, (prof(PZ, yp) + sh[0]) * Math.cos(th), pt);
+      pts.push([pt[0], pt[1]]);
+    }
+    line(pts, vis * boost, 2.4, .85);
+  }
+
+  // 3b) burun: sırt çizgileri, taban ve burun delikleri
+  {
+    const vis = facing(0);
+    if (vis > .05) {
+      const P3 = (yp, th) => { const d = featStatic(yp, th) + .014; proj((prof(PX, yp) + d) * Math.sin(th), yp, (prof(PZ, yp) + d) * Math.cos(th), pt); return [pt[0], pt[1]]; };
+      for (const sg of [1, -1]) {
+        const br = []; for (let k = 0; k <= 8; k++) br.push(P3(.12 - k * .065, sg * (.05 + .02 * k / 8)));
+        line(br, vis, 1.3, .55);
+        const nl = []; for (let k = 0; k <= 5; k++) { const u = k / 5; nl.push(P3(-.452 - .012 * Math.sin(u * Math.PI), sg * (.075 + .07 * u))); }
+        line(nl, vis, 1.2, .6);
+        const al = []; for (let k = 0; k <= 5; k++) { const u = k / 5; al.push(P3(-.36 - .09 * u, sg * .16)); }
+        line(al, vis, 1.1, .4);
+      }
+      const base = []; for (let k = 0; k <= 12; k++) { const u = -1 + 2 * k / 12; base.push(P3(-.43 - .03 * (1 - u * u), u * .15)); }
+      line(base, vis, 1.6, .7);
+    }
+  }
+  // 4) gözler: badem biçimli göz kapakları, iris ve parlak merkez
+  const open = Math.max(.05, c.eye * (1 - c.blinkV));
+  for (const E of EYES) {
+    const vis = facing(E.th); if (vis < .05) continue;
+    const sgn = E.th > 0 ? 1 : -1;
+    const eo = (E === EYES[1] && R.emo === 'witty') ? open * .72 : open;
+    const Wd = .125, Hu = .072 * eo, Hl = .04 * Math.min(1, .55 + eo * .45);
+    const P = (lx, ly) => { proj(E.x + E.tx * lx, E.y + ly + .06 * lx * sgn, E.z + E.tz * lx, pt); return [pt[0], pt[1]]; };
+    const upper = [], lower = [], crease = [];
+    for (let k = 0; k <= 14; k++) {
+      const u = -1 + 2 * k / 14, lx = u * Wd, e = Math.max(0, 1 - u * u);
+      upper.push(P(lx, Hu * Math.pow(e, .75)));
+      lower.push(P(lx, -Hl * Math.pow(e, .85)));
+      crease.push(P(lx * 1.05, Hu * Math.pow(e, .75) + .03 * Math.min(1, eo)));
+    }
+    // göz çukuru: koyu zemin
+    g.globalCompositeOperation = 'source-over';
+    g.beginPath(); upper.forEach((p, k) => k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); lower.slice().reverse().forEach(p => g.lineTo(p[0], p[1])); g.closePath();
+    g.fillStyle = `rgba(4,8,40,${(.7 * vis).toFixed(3)})`; g.fill();
+    g.globalCompositeOperation = 'lighter';
+    // iris (göz kapağının izin verdiği kadar)
+    const gxL = Math.max(-.045, Math.min(.045, c.gx * .035)), gyL = -c.gy * .022;
+    const ia = vis * sstep(.08, .4, eo);
+    if (ia > .02) {
+      const ri = .058, ry = ri * Math.min(1, .3 + eo * .8);
+      g.save(); g.beginPath(); upper.forEach((p, k) => k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); lower.slice().reverse().forEach(p => g.lineTo(p[0], p[1])); g.closePath(); g.clip();
+      for (const [rr, w, al] of [[1, 1.6, .9], [.62, 1.2, .6]]) {
+        g.beginPath();
+        for (let a = 0; a <= 20; a++) { const ph = a / 20 * Math.PI * 2; const p = P(gxL + ri * rr * Math.cos(ph), gyL + ry * rr * Math.sin(ph)); a ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); }
+        g.strokeStyle = `rgba(${core},${(ia * al * boost).toFixed(3)})`; g.lineWidth = w * DPR; g.stroke();
+      }
+      const cp0 = P(gxL, gyL), pr = 14 * DPR * (.8 + .2 * Math.sin(t * .7));
+      const rg = g.createRadialGradient(cp0[0], cp0[1], 0, cp0[0], cp0[1], pr);
+      rg.addColorStop(0, `rgba(255,255,255,${(ia * .95).toFixed(3)})`); rg.addColorStop(.35, `rgba(${core},${(ia * .6).toFixed(3)})`); rg.addColorStop(1, `rgba(${glow},0)`);
+      g.fillStyle = rg; g.beginPath(); g.arc(cp0[0], cp0[1], pr, 0, 7); g.fill();
+      g.restore();
+    }
+    line(upper, vis, 2.2, .95); line(lower, vis, 1.4, .7);
+    if (eo > .35) line(crease, vis, 1, .45);
+  }
+
+  // 5) ağız: dudak çizgileri, açılınca koyu iç
+  {
+    const ym = -.705, rxm = prof(PX, ym), rzm = prof(PZ, ym), thc = lipW(c) * 1.05 + .05, M = 16;
+    const vis = facing(0);
+    if (vis > .05) {
+      const U = [], L = [];
+      for (let k = 0; k <= M; k++) {
+        const u = -1 + 2 * k / M, th = u * thc, dd = depth(ym, th, c) + .014;
+        const base = ym + c.smile * .075 * u * u, e = Math.max(0, 1 - u * u);
+        const yU = base + (.008 + .02 * c.mouthRound) * e;
+        const yL = base - (.006 + jawv * .17 + .02 * c.mouthRound) * Math.pow(e, .8);
+        proj((rxm + dd) * Math.sin(th), yU, (rzm + dd) * Math.cos(th), pt); U.push([pt[0], pt[1]]);
+        proj((rxm + dd) * Math.sin(th), yL, (rzm + dd) * Math.cos(th), pt); L.push([pt[0], pt[1]]);
+      }
+      g.globalCompositeOperation = 'source-over';
+      g.beginPath(); U.forEach((p, k) => k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); L.slice().reverse().forEach(p => g.lineTo(p[0], p[1])); g.closePath();
+      g.fillStyle = `rgba(3,5,32,${(Math.min(1, .35 + jawv * 1.6) * .85 * vis).toFixed(3)})`; g.fill();
+      g.globalCompositeOperation = 'lighter';
+      line(U, vis * boost, 2.2, .95); line(L, vis * boost, 2.4, .95);
+    }
+  }
+  g.globalCompositeOperation = 'source-over';
+}
+
+function tick(dt) {
+  R.t += dt; const t = R.t, c = R.cur;
+  const lerp = (a, b, k) => a + (b - a) * Math.min(1, k * dt);
+
+  if (t > R.emoUntil && R.state !== 'speaking' && R.emo !== 'neutral') R.emo = 'neutral';
+  if (R.gazeUntil && t > R.gazeUntil) { R.gazeUntil = 0; if (R.state !== 'thinking') R.gaze = { x: 0, y: 0 }; }
+
+  // konuşma: karakter ilerlet, etiketleri tetikle, dudak hedefi
+  let mo = 0, mw = 0, mr = 0;
+  const S = R.say;
+  if (S && S.active) {
+    S.pos += dt * S.cps;
+    while (S.ci < S.cues.length && S.pos >= S.cues[S.ci].at) applyCue(S.cues[S.ci++]);
+    const i = Math.floor(S.pos);
+    if (i < S.text.length) {
+      const v = VIS(S.text[i]); const osc = .55 + .45 * Math.abs(Math.sin(t * 17));
+      mo = v[0] * (v[0] > 0 ? osc : 0); mw = v[1]; mr = v[2];
+    }
+  }
+  c.mouthOpen = lerp(c.mouthOpen, mo, 22); c.mouthWide = lerp(c.mouthWide, mw, 18); c.mouthRound = lerp(c.mouthRound, mr, 18);
+
+  // duygu
+  const e = EMO[R.emo];
+  c.smile = lerp(c.smile, e.smile + (R.state === 'speaking' ? .05 : 0), 6); c.brow = lerp(c.brow, e.brow + c.mouthOpen * .22, 6); c.browR = lerp(c.browR, e.browR + c.mouthOpen * .22, 6);
+  c.bin = lerp(c.bin, e.bin, 6); c.furrow = lerp(c.furrow, R.state === 'thinking' ? .5 : e.furrow, 5); c.jaw = lerp(c.jaw, e.jaw, 6);
+  c.eye = lerp(c.eye, e.eye, 8); c.cheek = lerp(c.cheek, e.cheek, 6); c.flash = lerp(c.flash, 0, 3);
+
+  // göz kırpma
+  if (R.blink === 0 && t >= R.nextBlink) R.blink = 0.0001;
+  c.blinkV = 0;
+  if (R.blink > 0) { R.blink += dt / 0.17; c.blinkV = Math.sin(Math.min(1, R.blink) * Math.PI); if (R.blink >= 1) { R.blink = 0; R.nextBlink = t + (Math.random() < .15 ? .25 : 2.2 + Math.random() * 3.8); } }
+
+  // bakış
+  if (R.state === 'idle' && t > R.drift.next) { R.drift = { x: (Math.random() - .5) * .5, y: (Math.random() - .5) * .3, next: t + 1.5 + Math.random() * 2.5 }; }
+  const gx = R.gaze.x + (R.state === 'idle' ? R.drift.x : 0), gy = R.gaze.y + (R.state === 'idle' ? R.drift.y : 0);
+  if (!R.sac || t > R.sac.next) R.sac = { x: (Math.random() - .5) * .16, y: (Math.random() - .5) * .12, next: t + .25 + Math.random() * 1.1 }; // gözün küçük sıçramaları
+  c.gx = lerp(c.gx, gx + R.sac.x, 14); c.gy = lerp(c.gy, gy + R.sac.y, 14);
+  // arada bir kendiliğinden hafif gülümseme / kaş oynatma
+  if (R.state === 'idle' && R.emo === 'neutral' && t > (R.micro || 0)) { R.micro = t + 6 + Math.random() * 8; if (Math.random() < .5) setEmotion(Math.random() < .6 ? 'happy' : 'curious'); R.emoUntil = t + 1.8; }
+
+  // jest
+  let nod = 0, tilt = 0, lean = 0, shrug = 0, wave = 0, shake = 0;
+  if (R.gest) {
+    const gs = R.gest, p = (t - gs.t0);
+    const D = { nod: 1.0, shake: 1.1, headtilt: 1.6, chin: 2.0, shrug: 1.1, wave: 1.9, point: 1.4 }[gs.name] || 1;
+    if (p > D) R.gest = null;
+    else {
+      const k = p / D, env = Math.sin(k * Math.PI);
+      if (gs.name === 'nod') nod = Math.sin(k * Math.PI * 4) * 9;
+      else if (gs.name === 'shake') shake = Math.sin(k * Math.PI * 4) * .22;
+      else if (gs.name === 'headtilt') tilt = env * 8;
+      else if (gs.name === 'chin') { tilt = env * 6; nod = env * 4; }
+      else if (gs.name === 'shrug') shrug = env * 14;
+      else if (gs.name === 'wave') { wave = env; tilt = Math.sin(k * Math.PI * 6) * 5 * env; }
+      else if (gs.name === 'point') lean = env * 8;
+    }
+  }
+  const sway = (R.state === 'speaking' ? .045 : R.state === 'idle' ? .08 : .03) * Math.sin(t * .6) + Math.sin(t * 1.7) * .012;
+  const speakBob = R.state === 'speaking' ? Math.sin(t * 5.3) * .012 : 0;
+  c.nod = lerp(c.nod, nod, 14); c.tilt = lerp(c.tilt, tilt, 12); c.lean = lerp(c.lean, lean, 10);
+  c.shrug = lerp(c.shrug, shrug, 14); c.wave = lerp(c.wave, wave, 10);
+
+  // kafa duruşu (durumuna göre)
+  const base = { idle: [0, .01], listening: [0, -.02], thinking: [.3, -.12], speaking: [0, .0] }[R.state];
+  R.baseYaw = lerp(R.baseYaw === undefined ? base[0] : R.baseYaw, base[0], 3.5);
+  R.basePitch = lerp(R.basePitch === undefined ? base[1] : R.basePitch, base[1], 3.5);
+  c.yaw = R.baseYaw + sway + shake + c.gx * .05 + c.lean * .004;
+  c.pitch = R.basePitch + c.nod * .0175 + c.gy * -.05 + speakBob + c.lean * .006 + c.shrug * .004;
+  c.roll = c.tilt * .0175 + Math.sin(t * .5) * .012;
+
+  // renk
+  const tc = STATE_COL[R.state];
+  for (let k = 0; k < 3; k++) R.col[k] = lerp(R.col[k], tc[k], 5);
+
+  draw(t);
+}
+
+let last = performance.now();
+function frame(now) { const dt = Math.min(.05, (now - last) / 1000); last = now; tick(dt); requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+
+/* ====== Konuşma (TTS) ====== */
+let ttsWait = null; // {resolve}
+function speechStart(text, cues, resolve) {
+  R.say = { text, cues, ci: 0, pos: 0, cps: 13 * cfg.rate, active: false, done: false };
+  ttsWait = { resolve, timer: setTimeout(() => { speechEnd(); }, 9000) }; // başlamazsa vazgeç
+  if (A) A.speak(text, cfg.lang, cfg.rate, cfg.pitch);
+  else if ('speechSynthesis' in window) {
+    const u = new SpeechSynthesisUtterance(text); u.lang = cfg.lang; u.rate = cfg.rate; u.pitch = cfg.pitch;
+    u.onstart = () => window.onTtsStart(); u.onend = () => window.onTtsDone(); u.onerror = () => window.onTtsError('hata');
+    u.onboundary = ev => window.onTtsRange(ev.charIndex, ev.charIndex + (ev.charLength || 1));
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } else window.onTtsError('yok');
+}
+function speechEnd() {
+  if (!ttsWait) return;
+  clearTimeout(ttsWait.timer); const r = ttsWait.resolve; ttsWait = null;
+  if (R.say) { R.say.active = false; if (R.say.cues) R.say.cues.slice(R.say.ci).forEach(applyCue); }
+  R.say = null; r();
+}
+window.onTtsStart = () => { if (R.say) { R.say.active = true; clearTimeout(ttsWait && ttsWait.timer); } };
+window.onTtsRange = (s) => { if (R.say) { R.say.active = true; R.say.pos = s; } };
+window.onTtsDone = () => speechEnd();
+window.onTtsError = () => {
+  // ses yoksa yazıyla devam et: tahmini süre kadar bekle
+  if (R.say && !R.say.fallback) { R.say.fallback = true; R.say.active = true; const ms = Math.min(12000, 1200 + R.say.text.length * 55); clearTimeout(ttsWait && ttsWait.timer); if (ttsWait) ttsWait.timer = setTimeout(speechEnd, ms); }
+};
+function stopSpeaking() { if (A) A.stopSpeaking(); else if ('speechSynthesis' in window) speechSynthesis.cancel(); speechEnd(); }
+
+/* ====== Ses tanıma ====== */
+let sttResolve = null, sttReject = null, recog = null;
+function listen() {
+  return new Promise((resolve, reject) => {
+    sttResolve = resolve; sttReject = reject;
+    if (A) A.startListening(cfg.lang);
+    else {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) { reject(new Error('Bu tarayıcıda ses tanıma yok.')); return; }
+      recog = new SR(); recog.lang = cfg.lang; recog.interimResults = true;
+      recog.onstart = () => window.onStt('begin', '');
+      recog.onresult = ev => { const r = ev.results[ev.results.length - 1]; window.onStt(r.isFinal ? 'result' : 'partial', r[0].transcript); };
+      recog.onerror = ev => window.onStt('error', ev.error === 'no-speech' ? '7' : ev.error);
+      recog.start();
+    }
+  });
+}
+window.onStt = (type, text) => {
+  if (type === 'partial') showMe(text);
+  else if (type === 'result') { const r = sttResolve; sttResolve = sttReject = null; if (r) r(text); }
+  else if (type === 'error') {
+    const rj = sttReject; sttResolve = sttReject = null;
+    const msg = (text === '7' || text === '6' || text === 'no-speech') ? 'Bir şey duyamadım.'
+      : text === 'izin' ? 'Mikrofon izni verilmedi.' : text === 'servis' ? 'Telefonda ses tanıma servisi yok.'
+      : text === '12' || text === '13' ? 'Bu dil için ses tanıma paketi yüklü değil.' : 'Ses tanıma hatası: ' + text;
+    if (rj) rj(new Error(msg));
+  }
+};
+function stopListening() { if (A) A.stopListening(); else if (recog) recog.abort(); const rj = sttReject; sttResolve = sttReject = null; if (rj) rj(new Error('')); }
+
+/* ====== Claude ====== */
+const URL_CLAUDE = 'https://api.anthropic.com/v1/messages';
+const SYSTEM = () => `Sen, bir telefon ekranının içinde yaşayan 3 boyutlu sibernetik bir robot asistansın ve bunun farkındasın. Adın Robo. Kullanıcıyla Türkçe konuşursun.
+Yanıtların sesli okunacak: kısa (en çok 2-3 cümle), doğal ve akıcı konuş. Madde işareti, başlık, emoji, markdown kullanma.
+Her yanıtın başına ve gerekirse cümle aralarına robotun beden dilini yöneten etiketler koy. Biçim: <gesture="nod" emotion="happy"> ya da <gaze="away">.
+gesture değerleri: nod, shake, headtilt, shrug, wave, point, chin. emotion değerleri: happy, curious, alert, witty, sad, surprised, neutral. Duygunu konuşmana uygun seç. gaze değerleri: camera, away, up.
+Etiketler dışında metne köşeli ya da açılı parantez koyma.
+Telefonun donanımını yalnızca araçlar (tools) ile kontrol edebilirsin: flaş, Wi-Fi paneli, Bluetooth ayarları, ses seviyesi. Kullanıcı bunlardan birini isterse ilgili aracı çağır, sonra ne yaptığını tek cümleyle söyle.
+Wi-Fi ve Bluetooth'u Android kendi başına açıp kapatmana izin vermez; araç ayar panelini açar, kullanıcıya dokunarak değiştirmesini söyle.
+Bilmediğin şeyi uydurma. Şu an: ${new Date().toLocaleString('tr-TR')}.`;
+
+const NO_ANDROID = 'Bu özellik yalnızca Android uygulamasında çalışır.';
+const TOOLS = [
+  { name: 'toggle_flashlight', description: 'Telefonun arka flaşını (el feneri) açar veya kapatır.',
+    input_schema: { type: 'object', properties: { on: { type: 'boolean', description: 'true: aç, false: kapat' } }, required: ['on'] } },
+  { name: 'set_wifi_state', description: 'Wi-Fi ayar panelini açar. Android uygulamanın Wi-Fi\'yi kendi başına değiştirmesine izin vermez; kullanıcı panelde dokunur. Mevcut durumu da döner.',
+    input_schema: { type: 'object', properties: { enabled: { type: 'boolean', description: 'İstenen durum (bilgi amaçlı)' } }, required: ['enabled'] } },
+  { name: 'open_bluetooth_settings', description: 'Bluetooth ayar ekranını açar.', input_schema: { type: 'object', properties: {} } },
+  { name: 'set_volume', description: 'Medya ses seviyesini yüzde olarak ayarlar (0-100).',
+    input_schema: { type: 'object', properties: { level: { type: 'integer', minimum: 0, maximum: 100 } }, required: ['level'] } },
+  { name: 'get_volume', description: 'Medya ses seviyesini yüzde olarak söyler.', input_schema: { type: 'object', properties: {} } }
+];
+const toolImpl = {
+  toggle_flashlight: i => { if (!A) return NO_ANDROID; const r = A.torch(!!i.on); return r === 'ok' ? (i.on ? 'Flaş açıldı.' : 'Flaş kapandı.') : r; },
+  set_wifi_state: i => { if (!A) return NO_ANDROID; const now = A.isWifiEnabled(); const r = A.openWifiPanel(); return r === 'ok' ? `Wi-Fi şu an ${now ? 'açık' : 'kapalı'}. Wi-Fi paneli açıldı; kullanıcı değiştirmeli.` : r; },
+  open_bluetooth_settings: () => { if (!A) return NO_ANDROID; const r = A.openBluetooth(); return r === 'ok' ? 'Bluetooth ayarları açıldı.' : r; },
+  set_volume: i => { if (!A) return NO_ANDROID; return 'Ses seviyesi %' + A.setVolume(Math.round(i.level)) + ' oldu.'; },
+  get_volume: () => { if (!A) return NO_ANDROID; return 'Ses seviyesi %' + A.getVolume() + '.'; }
+};
+
+let httpSeq = 0; const httpPending = {};
+window.onHttp = (id, status, body) => { const p = httpPending[id]; delete httpPending[id]; if (p) p({ status, body }); };
+function http(url, headers, bodyObj) {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(bodyObj);
+    if (A) { const id = String(++httpSeq); httpPending[id] = resolve; A.post(id, url, JSON.stringify(headers), body); }
+    else fetch(url, { method: 'POST', headers: Object.assign({ 'content-type': 'application/json' }, headers), body })
+      .then(async r => resolve({ status: r.status, body: await r.text() })).catch(reject);
+  });
+}
+const history = [];   // Claude sohbet geçmişi
+const ghistory = [];  // Gemini sohbet geçmişi
+function trimHistory() {
+  while (history.length > 24) {
+    history.shift();
+    while (history.length && !(history[0].role === 'user' && typeof history[0].content === 'string')) history.shift();
+  }
+}
+function trimG() {
+  while (ghistory.length > 24) {
+    ghistory.shift();
+    while (ghistory.length && !(ghistory[0].role === 'user' && ghistory[0].parts[0] && ghistory[0].parts[0].text !== undefined)) ghistory.shift();
+  }
+}
+function errText(r) { try { return JSON.parse(r.body).error.message; } catch (e) { return r.status === 0 ? 'İnternet bağlantısı yok (' + r.body + ')' : 'HTTP ' + r.status; } }
+function runTool(name, input) {
+  let out, err = false;
+  try { out = toolImpl[name] ? toolImpl[name](input || {}) : (err = true, 'Bilinmeyen araç: ' + name); }
+  catch (e) { out = 'Hata: ' + e.message; err = true; }
+  return { out: String(out), err };
+}
+
+async function askClaude(userText) {
+  if (!cfg.key) throw new Error('Anthropic API anahtarı girilmemiş. Ayarlardan ekle.');
+  const start = history.length; history.push({ role: 'user', content: userText });
+  let lastText = '';
+  for (let round = 0; round < 4; round++) {
+    trimHistory();
+    const r = await http(URL_CLAUDE, { 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      { model: cfg.model, max_tokens: 500, system: SYSTEM(), tools: TOOLS, messages: history });
+    if (r.status !== 200) { history.length = Math.min(history.length, start); throw new Error('Claude hatası: ' + errText(r)); }
+    const j = JSON.parse(r.body);
+    history.push({ role: 'assistant', content: j.content });
+    const text = j.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    if (text) lastText = text;
+    const uses = j.content.filter(b => b.type === 'tool_use');
+    if (j.stop_reason !== 'tool_use' || !uses.length) return lastText;
+    history.push({ role: 'user', content: uses.map(u => { const t = runTool(u.name, u.input); return { type: 'tool_result', tool_use_id: u.id, content: t.out, is_error: t.err }; }) });
+  }
+  return lastText;
+}
+
+function geminiTools() {
+  return [{ functionDeclarations: TOOLS.map(t => {
+    const d = { name: t.name, description: t.description };
+    if (Object.keys(t.input_schema.properties).length) d.parameters = { type: 'object', properties: t.input_schema.properties, required: t.input_schema.required };
+    return d;
+  }) }];
+}
+async function askGemini(userText) {
+  if (!cfg.gkey) throw new Error('Gemini API anahtarı girilmemiş. Ayarlardan ekle.');
+  const start = ghistory.length; ghistory.push({ role: 'user', parts: [{ text: userText }] });
+  let lastText = '';
+  for (let round = 0; round < 4; round++) {
+    trimG();
+    const gen = { maxOutputTokens: 1024 };
+    const body = { systemInstruction: { parts: [{ text: SYSTEM() }] }, contents: ghistory, tools: geminiTools(), generationConfig: gen };
+    let r;
+    // Seçili model yoğunsa (503/429) ya da kapandıysa (404) yedek modele düş.
+    const modeller = [cfg.gmodel].concat(cfg.gmodel === 'gemini-flash-lite-latest' ? [] : ['gemini-flash-lite-latest']);
+    for (const m of modeller) {
+      const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m) + ':generateContent';
+      for (let deneme = 0; deneme < 2; deneme++) {
+        r = await http(url, { 'x-goog-api-key': cfg.gkey }, body);
+        if (r.status !== 503 && r.status !== 429) break;
+        await new Promise(res => setTimeout(res, 1200 * (deneme + 1)));
+      }
+      if (r.status !== 503 && r.status !== 429 && r.status !== 404) break;
+    }
+    if (r.status !== 200) { ghistory.length = Math.min(ghistory.length, start); throw new Error('Gemini hatası: ' + errText(r)); }
+    const j = JSON.parse(r.body);
+    const cand = j.candidates && j.candidates[0];
+    if (!cand || !cand.content || !cand.content.parts) {
+      ghistory.length = Math.min(ghistory.length, start);
+      throw new Error('Gemini yanıt vermedi' + (j.promptFeedback && j.promptFeedback.blockReason ? ' (' + j.promptFeedback.blockReason + ')' : ''));
+    }
+    const parts = cand.content.parts;
+    ghistory.push({ role: 'model', parts });
+    const text = parts.filter(p => p.text && !p.thought).map(p => p.text).join('');
+    if (text) lastText = text;
+    const calls = parts.filter(p => p.functionCall);
+    if (!calls.length) { if (!lastText) { ghistory.length = Math.min(ghistory.length, start); throw new Error('Gemini boş yanıt verdi.'); } return lastText; }
+    ghistory.push({ role: 'user', parts: calls.map(c => ({ functionResponse: Object.assign({ name: c.functionCall.name }, c.functionCall.id ? { id: c.functionCall.id } : {}, { response: { result: runTool(c.functionCall.name, c.functionCall.args).out } }) })) });
+  }
+  return lastText;
+}
+const ask = t => cfg.provider === 'claude' ? askClaude(t) : askGemini(t);
+const hasKey = () => cfg.provider === 'claude' ? !!cfg.key : !!cfg.gkey;
+
+/* ====== Akış ====== */
+const sub = $('sub');
+function showMe(t) { sub.innerHTML = ''; const s = document.createElement('span'); s.className = 'me'; s.textContent = t; sub.appendChild(s); }
+function showReply(me, reply) { sub.innerHTML = ''; if (me) { const s = document.createElement('span'); s.className = 'me'; s.textContent = me; sub.appendChild(s); } sub.appendChild(document.createTextNode(reply)); }
+function showMsg(t) { sub.textContent = t; }
+
+let busy = false, session = 0;
+async function turn() {
+  if (busy) { // dokununca sus / iptal et
+    session++; stopSpeaking(); stopListening(); busy = false; setState('idle'); return;
+  }
+  busy = true; const my = ++session;
+  try {
+    do {
+      setState('listening'); showMsg('Dinliyorum...');
+      const heard = (await listen()).trim();
+      if (my !== session) return;
+      if (!heard) throw new Error('Bir şey duyamadım.');
+      setState('thinking'); showMe(heard);
+      const raw = await ask(heard);
+      if (my !== session) return;
+      const { text, cues } = parseTags(raw);
+      showReply(heard, text);
+      setState('speaking');
+      await new Promise(res => speechStart(text, cues, res));
+      if (my !== session) return;
+      setState('idle');
+    } while (cfg.conv && my === session);
+  } catch (e) {
+    if (my !== session) return;
+    setState('idle'); if (e.message) showMsg(e.message);
+  } finally { if (my === session) busy = false; }
+}
+$('mic').onclick = turn;
+$('btnClear').onclick = () => { history.length = 0; ghistory.length = 0; showMsg('Sohbet temizlendi.'); };
+function paintConv() { $('conv').className = cfg.conv ? 'active' : ''; }
+$('btnConv').onclick = () => { cfg.conv = !cfg.conv; store.set('conv', cfg.conv ? '1' : '0'); paintConv(); showMsg(cfg.conv ? 'Sürekli sohbet açık.' : 'Sürekli sohbet kapalı.'); };
+window.onAppPause = () => { session++; busy = false; stopSpeaking(); setState('idle'); };
+
+/* ====== Ayarlar ====== */
+function openSettings() {
+  $('fProv').value = cfg.provider; $('fGKey').value = cfg.gkey; $('fGModel').value = cfg.gmodel; $('fKey').value = cfg.key; $('fModel').value = cfg.model; $('fLang').value = cfg.lang;
+  $('fRate').value = cfg.rate; $('fPitch').value = cfg.pitch; $('vRate').textContent = cfg.rate; $('vPitch').textContent = cfg.pitch;
+  $('sheet').classList.add('show');
+}
+$('fRate').oninput = e => $('vRate').textContent = e.target.value;
+$('fPitch').oninput = e => $('vPitch').textContent = e.target.value;
+$('btnSet').onclick = openSettings;
+$('fCancel').onclick = () => $('sheet').classList.remove('show');
+$('fSave').onclick = () => {
+  cfg.provider = $('fProv').value; cfg.gkey = $('fGKey').value.trim(); cfg.gmodel = $('fGModel').value.trim() || 'gemini-3.8-flash';
+  cfg.key = $('fKey').value.trim(); cfg.model = $('fModel').value.trim() || 'claude-sonnet-5-5';
+  cfg.lang = $('fLang').value.trim() || 'tr-TR'; cfg.rate = parseFloat($('fRate').value); cfg.pitch = parseFloat($('fPitch').value);
+  ['provider', 'gkey', 'gmodel', 'key', 'model', 'lang', 'rate', 'pitch'].forEach(k => store.set(k, cfg[k]));
+  $('sheet').classList.remove('show'); showMsg('Ayarlar kaydedildi.');
+};
+
+paintConv(); setState('idle');
+if (!hasKey()) { showMsg('Başlamak için ⚙ ile bir API anahtarı gir (Gemini ücretsizdir).'); setTimeout(openSettings, 400); }
+else showMsg('Merhaba! Konuşmak için mikrofona dokun.');
+
+window.__robot = { R, parseTags, history, ghistory, cfg, ask, turn, setState, applyCue }; // test için
+</script>
+</body>
+</html>

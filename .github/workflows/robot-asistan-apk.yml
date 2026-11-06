@@ -1,0 +1,65 @@
+# Robo Asistan Android uygulamasını (APK) derler; APK'yı "robot-asistan-apk-latest" git etiketine ve artifact'a koyar.
+name: Robo Asistan APK
+
+on:
+  push:
+    branches: [main, claude/omniroute-global-install-52me96]
+    paths:
+      - 'robot-asistan/**'
+      - '.github/workflows/robot-asistan-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: robot-asistan-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: APK derle
+        env:
+          IMZA_ANAHTAR: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          IMZA_PAROLA: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          extra=""
+          if [ -n "$IMZA_ANAHTAR" ] && [ -n "$IMZA_PAROLA" ]; then
+            echo "$IMZA_ANAHTAR" | base64 -d > "$RUNNER_TEMP/imza.keystore"
+            extra="-PimzaDosya=$RUNNER_TEMP/imza.keystore -PimzaParola=$IMZA_PAROLA -PimzaAd=bektas"
+            echo "Sabit imza anahtari kullaniliyor."
+          else
+            echo "::warning::ANDROID_KEYSTORE_B64 / ANDROID_KEYSTORE_PASS tanimli degil; APK gecici anahtarla imzalaniyor."
+          fi
+          gradle -p robot-asistan/android assembleDebug --no-daemon $extra
+
+      - name: APK'yı adlandır
+        run: cp robot-asistan/android/app/build/outputs/apk/debug/app-debug.apk RobotAsistan-1.4.apk
+
+      - name: APK'yı git etiketine koy
+        run: |
+          d=$(mktemp -d)
+          cp RobotAsistan-1.4.apk "$d/"
+          cd "$d"
+          git init -q
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Robo Asistan APK (derleme ${{ github.run_number }})"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" HEAD:refs/tags/robot-asistan-apk-latest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RobotAsistan-apk
+          path: RobotAsistan-1.4.apk
