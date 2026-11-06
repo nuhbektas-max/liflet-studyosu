@@ -1,0 +1,8 @@
+# AURORA AI'nin üzerine kurulduğu VHToolkit sürümü (FAZ 1'de incelenen sürüm).
+# Kurulum betikleri bu dosyayı okur. Sürüm yükseltilecekse önce FAZ 1 analizi
+# yeni sürümle tekrarlanır, sonra bu değerler değiştirilir.
+VHTOOLKIT_URL=https://github.com/USC-ICT/vhtoolkit.git
+VHTOOLKIT_COMMIT=a5a7af736864d3f55c0aae71034486cce4d61871
+UNITY_VERSION=6000.5.11f1
+RIDE_COMMIT=6daea6a891764eeede4f82cc73289d1d973b22e8
+AURORA_BRANCH=aurora
