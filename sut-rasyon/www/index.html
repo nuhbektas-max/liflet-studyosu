@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f766e">
+<title>Süt Rasyon</title>
+<script>
+  // Görünüm ayarları (renk, yazı boyutu) sayfa çizilmeden uygulanır.
+  try { var g = JSON.parse(localStorage.getItem('sutRasyon.gorunum') || '{}'), r = document.documentElement;
+    if (g.renk && g.renk !== 'sekme') r.setAttribute('data-renk', g.renk);
+    if (g.yazi && g.yazi !== 'normal') r.setAttribute('data-yazi', g.yazi);
+  } catch (e) { /* özel mod */ }
+</script>
+<style>
+  :root { --taban:13px; --olcek:1; --fs:calc(var(--taban) * var(--olcek)); --bg:#fff; --text:#1f1f1f; --muted:#5f6368; --line:#d0d7de; --head:#f3f3f3; --headline:#c6c6c6; --accent:#0f766e; --accent-dark:#0b5953; --sel:#e0f2f1; --inp:#fffde7; --ok:#217346; --warn:#b45309; --bad:#c00; }
+  html[data-renk="yesil"] { --accent:#217346; --accent-dark:#1a5c38; --sel:#e8f2ec; --ok:#217346; }
+  html[data-renk="lacivert"] { --accent:#1f4e79; --accent-dark:#163a5b; --sel:#e3edf7; --ok:#1f4e79; }
+  html[data-renk="bordo"] { --accent:#8b1e3f; --accent-dark:#6b1630; --sel:#f6e5ea; --ok:#8b1e3f; }
+  html[data-renk="antrasit"] { --accent:#3c4650; --accent-dark:#2b333b; --sel:#e8ebee; --ok:#3c4650; }
+  html[data-renk="toprak"] { --accent:#8a4b2a; --accent-dark:#6b3518; --sel:#f3e3d3; --ok:#8a4b2a; }
+  html[data-yazi="kucuk"] { --olcek:.88; } html[data-yazi="buyuk"] { --olcek:1.15; } html[data-yazi="cokbuyuk"] { --olcek:1.3; }
+  /* Telefonda yazı ekran genişliğine göre ölçeklenir; seçilen yazı boyutu bunun üstüne çarpılır. */
+  @media (max-width: 700px) { :root { --taban:clamp(12px, 3.5vw, 15px); } }
+  /* Sekme renkleri: her sekmenin kendi rengi vardır; sayfanın vurgu rengi seçili sekmeyi izler (Ayarlar'dan tek renk seçilebilir). */
+  html:not([data-renk]) body[data-sekme="sagmal"] { --accent:#0f766e; --accent-dark:#0b5953; --sel:#e0f2f1; --ok:#0f766e; }
+  html:not([data-renk]) body[data-sekme="kuru"] { --accent:#b45309; --accent-dark:#8a3f06; --sel:#fdf0dc; --ok:#b45309; }
+  html:not([data-renk]) body[data-sekme="gecis"] { --accent:#c2410c; --accent-dark:#9a330a; --sel:#fde8de; --ok:#c2410c; }
+  html:not([data-renk]) body[data-sekme="duve"] { --accent:#6d28d9; --accent-dark:#5420a8; --sel:#ece6fb; --ok:#6d28d9; }
+  html:not([data-renk]) body[data-sekme="buzagi"] { --accent:#be185d; --accent-dark:#92134a; --sel:#fbe3ee; --ok:#be185d; }
+  html:not([data-renk]) body[data-sekme="ayar"] { --accent:#475569; --accent-dark:#334155; --sel:#e9edf2; --ok:#475569; }
+  html:not([data-renk]) body[data-sekme="lisans"] { --accent:#1d4ed8; --accent-dark:#1639a6; --sel:#e1e9fb; --ok:#1d4ed8; }
+  * { box-sizing: border-box; }
+  html, body { max-width:100%; overflow-x:hidden; }
+  main > *, .card, section { min-width:0; }
+  [hidden] { display:none !important; }
+  body { margin:0; background:var(--bg); color:var(--text); font:var(--fs)/1.3 Calibri,"Segoe UI",system-ui,-apple-system,sans-serif; padding-bottom:2.8em; -webkit-text-size-adjust:100%; }
+  header { background:var(--accent); color:#fff; padding:.5em .8em; display:flex; gap:.8em; align-items:baseline; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:1.15em; font-weight:600; } header p { margin:0; font-size:.92em; opacity:.85; }
+  .fx { display:flex; border-bottom:1px solid var(--headline); background:#fff; height:2em; }
+  .fx #ad { width:5.4em; border-right:1px solid var(--headline); padding:.25em .6em; text-align:center; color:var(--muted); background:var(--head); }
+  .fx #fxm { padding:.25em .8em; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; }
+  .fx i { font-style:italic; color:var(--muted); padding:.25em .6em; border-right:1px solid var(--headline); }
+  main { padding:.6em; display:grid; gap:1em; }
+  @media (min-width: 1000px) { #ana { grid-template-columns: 34em 1fr; align-items:start; } }
+  h2 { margin:0 0 .3em; font-size:1em; font-weight:700; background:var(--accent); color:#fff; padding:.25em .6em; }
+  h3 { margin:.8em 0 .3em; font-size:1em; }
+  table.xl { border-collapse:collapse; width:100%; background:#fff; }
+  table.xl th, table.xl td { border:1px solid var(--line); padding:.15em .5em; height:1.9em; text-align:right; white-space:nowrap; }
+  table.xl th { background:var(--head); border-color:var(--headline); font-weight:600; color:var(--muted); text-align:center; }
+  table.xl th.rn, table.xl td.rn { width:2.4em; min-width:2.4em; padding:0 .3em; text-align:center; background:var(--head); border-color:var(--headline); color:var(--muted); font-weight:400; }
+  table.xl tr.kol th { font-weight:400; font-size:.85em; height:1.5em; }
+  table.xl td.l, table.xl th.l { text-align:left; }
+  table.xl td.k { text-align:left; font-weight:600; background:#fafafa; }
+  table.xl tr:not(.kol) th { background:var(--sel); color:var(--accent-dark); }
+  table.xl tr.top td { font-weight:700; background:var(--head); border-top:2px solid var(--text); }
+  table.xl td.in { padding:0; background:var(--inp); }
+  table.xl td.in input[type=number], table.xl td.in input[type=text] { width:100%; height:1.85em; border:0; outline:0; background:transparent; font:inherit; text-align:right; padding:0 .5em; }
+  table.xl td.in input:focus { outline:2px solid var(--accent); outline-offset:-2px; background:var(--sel); }
+  table.xl td.mid { text-align:center; }
+  .ok { color:var(--ok); font-weight:600; } .low { color:var(--bad); font-weight:600; background:#fde7e7; } .hi { color:var(--warn); font-weight:600; background:#fff3e0; }
+  td:has(.low), td:has(.hi), td:has(.ok) { padding:0 !important; }
+  td > .low, td > .hi, td > .ok { display:block; padding:.15em .5em; }
+  .scroll { overflow-x:auto; margin-bottom:.8em; }
+  button, input, select, textarea { font:inherit; }
+  button.main, a.main { display:inline-block; margin:.4em 0; padding:.45em 1.1em; border:1px solid var(--accent-dark); background:var(--accent); color:#fff; font-weight:600; cursor:pointer; text-decoration:none; }
+  button.main:disabled { opacity:.5; cursor:default; }
+  a.main.wa, button.main.wa { background:#128c7e; border-color:#0b6e63; }
+  button.alt, button.sec, a.sec { display:inline-block; padding:.3em .8em; border:1px solid var(--headline); background:var(--head); color:var(--text); cursor:pointer; text-decoration:none; margin:.15em .2em .15em 0; }
+  button.sec.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.link { border:0; background:none; color:var(--accent); text-decoration:underline; cursor:pointer; padding:0 .3em; } a.link { color:var(--accent); }
+  .ipucu, .muted { color:var(--muted); font-size:.92em; margin:.3em 0; }
+  .not { border:1px solid #f0c36d; background:#fff8e1; padding:.3em .6em; margin:.3em 0; }
+  .hata, .msg.bad { border:1px solid #e57373; background:#fdeceb; padding:.5em .7em; margin:.4em 0; }
+  .msg.info { border:1px solid #9bc9aa; background:#eef7f0; padding:.5em .7em; margin:.4em 0; }
+  .kutu { display:grid; grid-template-columns:repeat(2,1fr); gap:0; margin-bottom:.6em; border:1px solid var(--headline); }
+  @media (min-width:600px){ .kutu { grid-template-columns:repeat(4,1fr); } }
+  .kutu div { padding:.3em .6em; border:1px solid var(--line); border-top:3px solid var(--accent); background:var(--sel); } .kutu b { display:block; font-size:1.25em; } .kutu span { color:var(--muted); font-size:.85em; }
+  details summary { cursor:pointer; font-weight:700; background:var(--accent); color:#fff; padding:.25em .6em; }
+  .sayfalar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--headline); display:flex; flex-wrap:wrap; z-index:6; box-shadow:0 -2px 6px rgba(0,0,0,.08); }
+  .sayfalar button { flex:1 1 13%; min-width:0; border:0; border-top:3px solid var(--t); border-right:1px solid #fff; background:var(--tt); color:var(--t); padding:.55em .2em; cursor:pointer; font-weight:600; font-size:.92em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sayfalar button.on { background:var(--t); color:#fff; }
+  @media (max-width: 700px) { .sayfalar button { flex:1 1 23%; } }
+  footer { padding:.4em .8em 1.5em; color:var(--muted); font-size:.85em; }
+  #lisansUyari { margin:.4em .6em; border:1px solid #f0c36d; background:#fff8e1; padding:.4em .7em; }
+  /* Ayarlar, lisans ve beyan ekranları */
+  .card { background:#fff; border:1px solid var(--line); padding:.7em; max-width:44em; }
+  #lisansEkrani { padding:.6em; display:block; }
+  #lisansEkrani[hidden] { display:none; }
+  .field { display:block; margin:.5em 0; } .field > span { display:block; color:var(--muted); font-size:.92em; margin-bottom:.15em; }
+  .field input[type=text], .field input[type=password], .field textarea, .field select, .suzgec input[type=text] { width:100%; padding:.35em .5em; border:1px solid var(--headline); background:var(--inp); }
+  .suzgec input[type=text] { width:14em; max-width:100%; }
+  .copybox { width:100%; padding:.4em .5em; border:1px solid var(--headline); background:#fafafa; }
+  .alanlar { display:grid; grid-template-columns:repeat(auto-fit,minmax(12em,1fr)); gap:.2em .8em; }
+  .check { display:flex; gap:.5em; align-items:flex-start; margin:.6em 0; }
+  .beyanmetin { max-height:16em; overflow:auto; border:1px solid var(--headline); background:#fafafa; padding:.4em .7em; margin:.5em 0; }
+  .cihazkod { display:flex; gap:.8em; align-items:center; flex-wrap:wrap; border:1px solid var(--headline); background:var(--sel); padding:.5em .7em; margin:.5em 0; }
+  .cihazkod b { font-size:1.3em; letter-spacing:.05em; }
+  .lsdugme { display:flex; gap:.5em; flex-wrap:wrap; align-items:center; }
+  details.lsyon { margin-top:1em; } details.lsyon > :not(summary) { padding:.3em .2em; }
+  table.lisliste { border-collapse:collapse; width:100%; } table.lisliste th, table.lisliste td { border:1px solid var(--line); padding:.2em .5em; text-align:left; white-space:nowrap; } table.lisliste th { background:var(--head); }
+  td.d.ok { color:var(--ok); font-weight:600; } td.d.warn { color:var(--warn); font-weight:600; } td.d.bad { color:var(--bad); font-weight:600; }
+  .secenek { display:flex; gap:.4em; flex-wrap:wrap; margin:.3em 0 .8em; }
+  .renkdugme { display:inline-flex; align-items:center; gap:.4em; padding:.35em .8em; border:2px solid var(--line); background:#fff; cursor:pointer; }
+  .renkdugme.on { border-color:var(--text); font-weight:700; } .renkdugme i { width:1.1em; height:1.1em; display:inline-block; border-radius:50%; }
+  @media (max-width: 640px) {
+    main { padding:.4em; gap:.7em; }
+    header { padding:.4em .6em; } header p { display:none; }
+    table.xl th, table.xl td { white-space:normal; padding:.15em .3em; overflow-wrap:break-word; }
+    #yemtablo td.k { min-width:7.5em; }
+    table.xl th.rn, table.xl td.rn { width:1.8em; min-width:1.8em; }
+    table.xl td.in input[type=number], table.xl td.in input[type=text] { min-width:2.4em; padding:0 .25em; }
+    .card { padding:.5em; } .alanlar { grid-template-columns:1fr; }
+    .kutu b { font-size:1.1em; }
+    /* Verilen lisanslar listesi telefonda kart olur */
+    table.lisliste thead { display:none; }
+    table.lisliste, table.lisliste tbody, table.lisliste tr { display:block; width:100%; }
+    table.lisliste tr { border:1px solid var(--line); margin:.4em 0; padding:.25em .5em; background:#fff; }
+    table.lisliste td { border:0; display:flex; justify-content:space-between; gap:.6em; white-space:normal; padding:.1em 0; text-align:right; }
+    table.lisliste td::before { content:attr(data-e); color:var(--muted); text-align:left; }
+  }
+  body.kilitli > header, body.kilitli > .fx, body.kilitli > main, body.kilitli > .sayfalar, body.kilitli > #lisansUyari { display:none; }
+  @media print { header, .fx, .sayfalar, button, .form, footer, #lisansEkrani { display:none !important; } main { display:block; } }
+</style>
+</head>
+<body data-sekme="sagmal">
+<header><h1>Süt Rasyon</h1><p>Süt sığırı için en ucuz dengeli rasyon (NRC 2001 esaslı, yaklaşık)</p></header>
+<div class="fx"><div id="ad">A1</div><i>fx</i><div id="fxm"></div></div>
+<div id="lisansUyari" hidden></div>
+<div id="lisansEkrani" hidden></div>
+<main id="ana">
+  <section class="form">
+    <h2>Girdiler</h2>
+    <table class="xl" id="alanlar"></table>
+    <button class="main" id="hesapla">Rasyonu hesapla</button>
+    <p class="ipucu" id="ipucu"></p>
+    <details id="yemler" open>
+      <summary>Yemler ve fiyatlar</summary>
+      <p class="ipucu">Elindeki yemleri işaretle; fiyatı (TL/kg, yaş) kendi fiyatınla değiştir. "En az / En çok": günlük yaş kg sınırı, boş bırakılabilir. Enter ve oklar alttaki hücreye geçer; Excel'den sütun ya da blok kopyalayıp seçili hücreye yapıştırabilirsin (fiyat, en az, en çok yan yana yapışır).</p>
+      <div class="scroll"><table class="xl" id="yemtablo"></table></div>
+    </details>
+  </section>
+  <section id="sonuc"><p class="ipucu">Bilgileri girip "Rasyonu hesapla"ya dokun.</p></section>
+</main>
+<main id="ayarSayfa" hidden></main>
+<main id="lisansSayfa" hidden>
+  <section class="card"><h2>Lisans</h2><div id="lisansBilgi" class="muted"></div></section>
+  <section class="card" id="yoneticiKart" hidden></section>
+</main>
+<footer>Değerler tablo ortalamasıdır; yem analizi varsa kendi değerinizi kullanın. Bu program bir karar destek aracıdır ve veteriner hekim ya da besleme uzmanının yerine geçmez; kullanımdan doğan sorumluluk kullanıcıya aittir (Ayarlar sayfasında tam metin).</footer>
+<div class="sayfalar" id="gruplar"></div>
+<script src="vendor/lp-solver.js"></script>
+<script src="model.js"></script>
+<script src="rol.js"></script>
+<script src="rapor.js"></script>
+<script src="lisans.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

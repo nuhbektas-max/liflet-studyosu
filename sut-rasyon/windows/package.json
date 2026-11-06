@@ -1,0 +1,39 @@
+{
+  "name": "sut-rasyon",
+  "productName": "Süt Rasyon",
+  "version": "1.2.0",
+  "description": "Süt sığırı için en ucuz dengeli yem karışımı",
+  "author": "Süt Rasyon",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "hazirla": "node hazirla.js",
+    "start": "node hazirla.js && electron .",
+    "dist": "node hazirla.js && electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "tr.sutrasyon.app",
+    "productName": "Süt Rasyon",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "package.json", "www/**/*"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "portable", "arch": ["x64"] }],
+      "icon": "www/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Süt Rasyon",
+      "language": "1055",
+      "artifactName": "SutRasyon-Kurulum-${version}.exe"
+    },
+    "portable": { "artifactName": "SutRasyon-Tasinabilir-${version}.exe" }
+  }
+}
