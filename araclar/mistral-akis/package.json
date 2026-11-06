@@ -1,0 +1,13 @@
+{
+  "name": "mistral-akis",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Streams a Mistral answer through Vercel AI Gateway to the terminal.",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "ai": "^5.0.0"
+  }
+}
