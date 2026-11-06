@@ -1,0 +1,69 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bektas.besirasyon'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.bektas.besirasyon'
+        minSdk 21
+        targetSdk 34
+        versionCode 35
+        versionName '4.4'
+    }
+
+    // Uygulamanın ekranı, web sürümüyle aynı dosyalardır (besi-rasyon/www).
+    sourceSets {
+        main {
+            assets.srcDirs = ['../../www']
+        }
+    }
+
+    // İki uygulama: standart kullanıcı ve yönetici. Yönetici uygulaması ayrı kurulur (farklı paket adı),
+    // adı "Besi Rasyon Yönetici"dir ve www/rol.js yerine src/yonetici/assets/rol.js'i kullanır.
+    flavorDimensions 'rol'
+    productFlavors {
+        kullanici {
+            dimension 'rol'
+        }
+        yonetici {
+            dimension 'rol'
+            applicationIdSuffix '.yonetici'
+        }
+    }
+
+    // Sabit imza: GitHub Secrets'taki anahtar verilirse (-PimzaDosya=...) her derleme ayni anahtarla
+    // imzalanir; boylece guncellemeler eski surumun uzerine kurulabilir. Anahtar depoda tutulmaz.
+    if (project.hasProperty('imzaDosya')) {
+        signingConfigs {
+            sabit {
+                storeFile file(project.property('imzaDosya'))
+                storePassword project.property('imzaParola')
+                keyAlias project.property('imzaAd')
+                keyPassword project.property('imzaParola')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (project.hasProperty('imzaDosya')) signingConfig signingConfigs.sabit
+        }
+        release {
+            minifyEnabled false
+            if (project.hasProperty('imzaDosya')) signingConfig signingConfigs.sabit
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // FileProvider: kameranın çektiği fotoğrafı güvenle almak için.
+    implementation 'androidx.core:core:1.12.0'
+}
