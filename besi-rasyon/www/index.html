@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f8f4">
+<title>Besi Rasyon</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Besi Rasyon">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  /* Accent ladder: tam yeşil yalnızca küçük işaretlerde (ana düğme, veri çubuğu, seçili sekme simgesi);
+     alanları yeşilin açık tonları taşır. Düz yüzeyler, 1px çizgi, gölge ve gradyan yok.
+     Telefon öncelikli tek sütun; geniş ekranda form solda, sonuç sağda. */
+  :root {
+    --bg: #f6f8f4; --card: #ffffff; --text: #16221a; --muted: #566259; --faint: #66726a;
+    --green: #2f6b2f; --on-green: #ffffff; --green-soft: #e8f1e4; --green-ink: #1f4a1f;
+    --warn: #7a4e00; --warn-soft: #fff4dc; --bad: #a12a1f; --bad-soft: #fdeceb;
+    --line: #e3e8df; --rule: #eef1eb; --control: #c7d0c3; --active: #e8f1e4;
+    --radius-card: 8px; --radius-control: 6px; --radius-chip: 4px; --control-h: 44px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1410; --card: #171d18; --text: #e8efe6; --muted: #a3b2a0; --faint: #93a290;
+      --green: #7cc274; --on-green: #0d150c; --green-soft: #1e2e1c; --green-ink: #b9e3b2;
+      --warn: #f0c060; --warn-soft: #33290f; --bad: #ff8a7a; --bad-soft: #351a17;
+      --line: #263027; --rule: #1f2820; --control: #3a473a; --active: #1e2e1c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1410; --card: #171d18; --text: #e8efe6; --muted: #a3b2a0; --faint: #93a290;
+    --green: #7cc274; --on-green: #0d150c; --green-soft: #1e2e1c; --green-ink: #b9e3b2;
+    --warn: #f0c060; --warn-soft: #33290f; --bad: #ff8a7a; --bad-soft: #351a17;
+    --line: #263027; --rule: #1f2820; --control: #3a473a; --active: #1e2e1c;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-variant-numeric: tabular-nums; }
+
+  /* Üst çubuk: ürünün işareti ve adı, zeminle aynı renk, altında tek çizgi. */
+  header { background: var(--bg); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; min-height: 60px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px), calc((100% - 1120px) / 2 + 16px)); padding-right: max(16px, env(safe-area-inset-right, 0px), calc((100% - 1120px) / 2 + 16px)); }
+  header .mark { flex: none; width: 28px; height: 28px; color: var(--green); }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.2; }
+  header p { margin: 1px 0 0; font-size: 13px; color: var(--muted); line-height: 1.3; }
+
+  main { max-width: 1120px; margin: 0 auto; padding-block: 24px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .col-form, .col-result { min-width: 0; }
+  .col-result .card { margin-top: 0; }
+  @media (min-width: 1080px) {
+    /* 1120 = 600 form + 24 aralık + 496 sonuç; ikisi de aynı üst çizgiden başlar. */
+    main { display: grid; grid-template-columns: minmax(0, 600px) minmax(0, 1fr); column-gap: 24px; align-items: start; }
+    .col-form { grid-column: 1; }
+    .col-result { grid-column: 2; }
+    main:not(:has(#result:not([hidden]))) .col-result { position: sticky; top: 16px; }
+  }
+  @media (max-width: 1079px) { .col-form, .col-result { max-width: 680px; margin-inline: auto; } }
+  /* Hayvan alanları: telefonda 2 sütun ("genis" olanlar tam satır), tablette 3 sütun. */
+  .alanlar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+  .alanlar .genis { grid-column: 1 / -1; }
+  .alanlar label.field { display: flex; flex-direction: column; justify-content: flex-end; }
+  /* Dikey tablet (720–1079 px): tek sütun ama geniş; yemler, katkılar ve göstergeler iki sütun. */
+  @media (min-width: 720px) and (max-width: 1079px) {
+    .col-form, .col-result { max-width: 920px; }
+    .alanlar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .alanlar .genis { grid-column: auto; }
+    #feeds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; align-items: start; }
+    #feeds > :not(.feed) { grid-column: 1 / -1; }
+    #katkilar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; align-items: start; }
+    #evalList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+    .cov { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; }
+  }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 20px; margin: 0 0 16px; }
+  @media (max-width: 480px) { .card { padding: 16px; } }
+  h2 { font-size: 16px; font-weight: 600; line-height: 1.3; margin: 0 0 12px; }
+  .card.empty { border-style: dashed; }
+  .card.empty p { margin: 0; }
+  main:has(#result:not([hidden])) .card.empty { display: none; }
+
+  label.field { display: block; margin: 14px 0 0; }
+  .row2 label.field, .row3 label.field { margin-top: 14px; }
+  label.field span { display: block; font-size: 14px; font-weight: 500; color: var(--muted); margin-bottom: 6px; line-height: 1.3; }
+  input[type=number], input[type=text], select, textarea { font-family: inherit; }
+  input[type=number], .actions input[type=text], #analizCard input[type=text], select, #savedFilter {
+    width: 100%; min-height: var(--control-h); font-size: 17px; padding: 8px 12px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--card); color: var(--text);
+  }
+  input::placeholder { color: var(--faint); opacity: 1; }
+  input[type=number]:focus-visible, input[type=text]:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; border-color: var(--green); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .feed { display: grid; grid-template-columns: 34px 1fr 110px; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--rule); }
+  .feed:first-of-type { border-top: 0; }
+  .feed input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--green); justify-self: center; }
+  .feed .name { font-size: 16px; font-weight: 500; }
+  .feed .name small { display: block; color: var(--muted); font-size: 13px; font-weight: 400; }
+  .feed input[type=number] { font-size: 16px; padding: 8px; text-align: right; }
+  .feed.off .name { color: var(--muted); font-weight: 400; }
+  .feed .sinir { grid-column: 2 / 4; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .feed .sinir .zor { grid-column: 1 / 3; display: flex; align-items: center; gap: 8px; }
+  .feed .sinir .zor input { width: 20px; height: 20px; accent-color: var(--green); }
+  .feed .sinir .zor em { font-size: 14px; color: var(--text); margin: 0; }
+  .feed .sinir em { display: block; font-style: normal; font-size: 13px; color: var(--muted); margin-bottom: 2px; }
+  .feed .sinir input { font-size: 16px; padding: 6px 8px; min-height: 40px; }
+  .feed.off .sinir { display: none; }
+  ul.oneri { margin: 8px 0 4px; padding-left: 20px; } ul.oneri li { margin: 6px 0; }
+  .result small.lim { display: block; color: var(--muted); font-size: 12px; }
+  .feed .etiket { grid-column: 2 / 4; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .feed .etiket em, .katki .kinputs em { display: block; font-style: normal; font-size: 13px; color: var(--muted); margin-bottom: 2px; }
+  .feed .etiket input { font-size: 16px; padding: 6px 8px; min-height: 40px; }
+  .feed.off .etiket { opacity: .6; }
+  .katki { padding: 12px 0; border-top: 1px solid var(--rule); }
+  .katki:first-child { border-top: 0; }
+  .katki .kname { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; }
+  .katki .kname input { width: 22px; height: 22px; accent-color: var(--green); }
+  .katki .kinputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 4px 30px; }
+  .katki .kinputs input { font-size: 16px; padding: 6px 8px; min-height: 40px; }
+  .katki small { display: block; margin-left: 30px; color: var(--muted); font-size: 13px; }
+  .katki.off .kinputs, .katki.off small { opacity: .6; }
+  .result tr.sub td { font-weight: 500; color: var(--muted); font-size: 13px; padding-top: 16px; }
+  .msg.info { background: var(--green-soft); color: var(--text); }
+  .actions { margin-top: 16px; display: grid; gap: 8px; }
+  .actions button, .saved-btns button { min-height: var(--control-h); font: inherit; font-size: 16px; font-weight: 500; padding: 10px 14px; border-radius: var(--radius-control); border: 1px solid var(--control); background: var(--card); color: var(--text); cursor: pointer; }
+  .actions .wa, .saved-btns .wa { background: var(--card); border-color: var(--green); color: var(--green-ink); }
+  .actions a, .saved-btns a { display: flex; align-items: center; justify-content: center; text-align: center; text-decoration: none; font-weight: 500; color: var(--text); border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--card); }
+  .actions a { font-size: 16px; min-height: var(--control-h); padding: 10px 14px; }
+  .saved-btns a { font-size: 15px; min-height: 40px; padding: 8px 6px; }
+  .saved-btns button.del.confirm { background: var(--bad); border-color: var(--bad); color: var(--card); }
+  textarea.copybox { width: 100%; min-height: 140px; font: 14px/1.4 ui-monospace, monospace; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--card); color: var(--text); padding: 10px; }
+  button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  .saved-item { padding: 12px 0; border-top: 1px solid var(--rule); }
+  .saved-item:first-of-type { border-top: 0; }
+  .saved-item small { display: block; color: var(--muted); font-size: 13px; }
+  .saved-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .saved-btns button { padding: 8px 6px; font-size: 15px; min-height: 40px; }
+  .saved-btns button.del { color: var(--bad); }
+  #savedFilter { min-height: 40px; font-size: 16px; margin-bottom: 8px; }
+  .result h3 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+  .cov { display: grid; }
+  .covrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  .covrow .cn { min-width: 0; } .covrow .cn b { display: block; font-size: 15px; font-weight: 500; }
+  .covrow .cn span { display: block; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  .covrow .cp { text-align: right; }
+  .covrow small { display: block; font-size: 12px; }
+  .covrow small.good { color: var(--green-ink); } .covrow small.low { color: var(--bad); } .covrow small.high { color: var(--warn); }
+  /* İhtiyaç karşılama çubuğu: 100 işaretine kadar dolar, çizgi ihtiyaç düzeyini gösterir. */
+  .covbar { grid-column: 1 / -1; position: relative; height: 6px; border-radius: 3px; background: var(--rule); margin-top: 4px; }
+  .covbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--green); }
+  .covbar i.low { background: var(--bad); } .covbar i.high { background: var(--warn); }
+  .covbar u { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text); text-decoration: none; }
+  [hidden] { display: none !important; }
+  label.check { display: flex; gap: 10px; align-items: center; font-size: 16px; margin: 14px 0 0; }
+  label.check input { width: 22px; height: 22px; accent-color: var(--green); }
+  .pct { display: inline-block; min-width: 56px; padding: 2px 8px; border-radius: var(--radius-chip); font-weight: 600; font-size: 14px; text-align: center; }
+  .pct.good { background: var(--green-soft); color: var(--green-ink); }
+  .pct.low { background: var(--bad-soft); color: var(--bad); }
+  .pct.high { background: var(--warn-soft); color: var(--warn); }
+  ul.neden { margin: 4px 0; padding-left: 20px; } ul.neden li { margin: 4px 0; }
+  .bars { display: grid; gap: 8px; }
+  .bar { display: grid; grid-template-columns: minmax(0, 9em) 1fr 3em; gap: 10px; align-items: center; font-size: 14px; }
+  .bar .bl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar .bt { background: var(--rule); border-radius: 4px; height: 8px; overflow: hidden; }
+  .bar .bt i { display: block; height: 100%; background: var(--green); }
+  .bar .bv { text-align: right; font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; }
+  table.eco td, table.eco th { font-size: 14px; padding: 8px 4px; }
+  table.eco tr.cur td { font-weight: 600; }
+  table.eco tr.best td { background: var(--green-soft); }
+  table.eco tr.best td:first-child::after { content: " · en ekonomik"; color: var(--green-ink); font-size: 12px; font-weight: 500; }
+  details.card > summary { font-size: 16px; font-weight: 600; padding: 0; margin: 0; }
+  #analizCard summary, #advanced summary, #evalCard summary { min-height: 28px; }
+  details.card[open] > summary { margin-bottom: 12px; }
+  .actions button.del { color: var(--bad); }
+  .evrow { display: grid; grid-template-columns: minmax(0, 1fr) 96px auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--rule); font-size: 16px; }
+  .evrow:first-child { border-top: 0; }
+  .evrow input { font-size: 16px; padding: 7px 8px; text-align: right; }
+  .evrow em { font-style: normal; color: var(--muted); font-size: 14px; }
+  .beklenen { border-radius: var(--radius-card); padding: 16px; margin: 12px 0; display: grid; gap: 2px; }
+  .beklenen.good { background: var(--green-soft); } .beklenen.low { background: var(--warn-soft); }
+  .beklenen span { font-size: 14px; color: var(--muted); } .beklenen b { font-size: 32px; font-weight: 600; line-height: 1.2; }
+  .beklenen small { font-size: 13px; color: var(--muted); }
+  .rehber { margin: 4px 0; padding-left: 18px; } .rehber li { margin: 8px 0; }
+  details.dg summary { font-size: 15px; font-weight: 600; color: var(--green-ink); margin: 6px 0; }
+  .rehber li.iyi { background: var(--green-soft); border-radius: var(--radius-control); padding: 6px 8px; margin-left: -8px; list-style-position: inside; }
+  h4 { font-size: 15px; font-weight: 600; margin: 12px 0 2px; }
+  button.link { background: none; border: 0; padding: 0; color: var(--green-ink); font-weight: 600; text-decoration: underline; font-size: 15px; cursor: pointer; }
+  table.eco tr.neg td { color: var(--bad); }
+  #kmRehber { margin-top: 12px; border-top: 1px solid var(--rule); padding-top: 10px; }
+  #kmRehber summary { font-weight: 600; color: var(--green-ink); }
+  ol.adimlar { padding-left: 20px; } ol.adimlar li { margin: 6px 0; }
+  #kmUygula { width: 100%; min-height: var(--control-h); font: inherit; font-size: 16px; font-weight: 500; padding: 10px; border-radius: var(--radius-control); border: 1px solid var(--control); background: var(--card); color: var(--text); }
+  #kmUygula:disabled { opacity: .5; }
+  .kmolc { display: flex; align-items: flex-end; padding-bottom: 8px; }
+  .row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 10px; }
+  .row3 input { font-size: 16px; padding: 8px; }
+  .sindirim { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
+  .sd { border-radius: var(--radius-control); padding: 10px 8px; text-align: center; display: grid; }
+  .sd.good { background: var(--green-soft); } .sd.low { background: var(--bad-soft); }
+  .sd b { font-size: 18px; font-weight: 600; } .sd span { font-size: 13px; } .sd small { font-size: 12px; color: var(--muted); }
+  details.protein { margin: 12px 0; } details.protein summary { font-weight: 600; font-size: 16px; cursor: pointer; padding: 4px 0; }
+  .cp.pv { font-weight: 600; font-size: 16px; white-space: nowrap; }
+  table.pt td, table.pt th { font-size: 14px; padding: 6px 4px; }
+  .grouptitle { font-size: 13px; font-weight: 500; color: var(--muted); margin: 16px 0 2px; }
+  button.main { width: 100%; min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; padding: 12px; border: 0; border-radius: var(--radius-control); background: var(--green); color: var(--on-green); margin: 0 0 16px; cursor: pointer; }
+  button.main:active { transform: scale(.99); }
+  details summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+  .result table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .result td, .result th { padding: 10px 4px; border-bottom: 1px solid var(--rule); text-align: left; }
+  .result th { font-size: 13px; font-weight: 500; color: var(--muted); border-bottom-color: var(--line); }
+  .result td.n, .result th.n { text-align: right; white-space: nowrap; }
+  .result tr:last-child th { color: var(--text); font-size: 15px; font-weight: 600; }
+  .big { font-size: 24px; font-weight: 600; }
+
+  /* Göstergeler: tek kap, 1px ayraçlı; ilk gösterge sorunun cevabı olduğu için tam genişlik ve en büyük. */
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius-card); overflow: hidden; margin: 16px 0; }
+  .kpi { background: var(--card); padding: 14px 16px; }
+  .kpi:first-child { grid-column: 1 / -1; padding: 18px 16px; }
+  .kpi:last-child:nth-child(even) { grid-column: 1 / -1; }
+  .kpi b { display: block; font-size: 22px; font-weight: 600; line-height: 1.25; }
+  .kpi:first-child b { font-size: 32px; }
+  .kpi span { font-size: 13px; color: var(--muted); display: block; margin-top: 2px; line-height: 1.35; }
+  .kpi.neg { background: var(--bad-soft); }
+  .kpi.neg b { color: var(--bad); }
+  .msg { border-radius: var(--radius-control); padding: 12px 14px; margin: 12px 0; }
+  .msg.warn { background: var(--warn-soft); color: var(--warn); }
+  .msg.bad { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
+  .ok { color: var(--green-ink); font-weight: 600; }
+  .muted { color: var(--muted); font-size: 14px; }
+  p.muted { margin: 12px 0 0; }
+  .tabs { display: flex; gap: 8px; margin: 0 0 12px; }
+  .tabs button { flex: 1; min-height: 40px; padding: 8px 10px; font: inherit; font-size: 15px; font-weight: 500; border: 1px solid var(--control); background: var(--card); color: var(--text); border-radius: var(--radius-control); cursor: pointer; }
+  .tabs button.on { background: var(--active); border-color: var(--green); color: var(--green-ink); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <svg class="mark" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 26V9"/><path d="M14 9c-3.5 0-5-2.5-5-5 3.5 0 5 2.5 5 5Z"/><path d="M14 9c3.5 0 5-2.5 5-5-3.5 0-5 2.5-5 5Z"/><path d="M14 16c-3.5 0-5-2.5-5-5 3.5 0 5 2.5 5 5Z"/><path d="M14 16c3.5 0 5-2.5 5-5-3.5 0-5 2.5-5 5Z"/><path d="M14 23c-3.5 0-5-2.5-5-5 3.5 0 5 2.5 5 5Z"/><path d="M14 23c3.5 0 5-2.5 5-5-3.5 0-5 2.5-5 5Z"/></svg>
+  <div>
+    <h1>Besi Rasyon</h1>
+    <p>Besi sığırı için en ucuz dengeli yem karışımı</p>
+  </div>
+</header>
+<main>
+<div class="col-form">
+  <section class="card" id="iosKur" hidden>
+    <h2>iPhone'a uygulama olarak ekleyin</h2>
+    <p class="muted">Alttaki <b>Paylaş</b> düğmesine (yukarı oklu kare) dokunun, listeden <b>Ana Ekrana Ekle</b>'yi seçin. Besi Rasyon ana ekranda simgesiyle açılır ve internetsiz çalışır.</p>
+    <button class="link" id="iosKurKapat">Anladım, gizle</button>
+  </section>
+  <section class="card" id="saved" hidden></section>
+
+  <section class="card">
+    <h2>Hayvan</h2>
+    <div class="alanlar">
+      <label class="field"><span>Canlı ağırlık (kg)</span><input id="bw" type="number" inputmode="decimal" min="80" max="800" step="5"></label>
+      <label class="field"><span>Günlük artış (kg)</span><input id="adg" type="number" inputmode="decimal" min="0.2" max="2.2" step="0.1"></label>
+      <label class="field"><span>Kesim kilosu (kg)</span><input id="finalBw" type="number" inputmode="decimal" min="300" max="900" step="10"></label>
+      <label class="field"><span>Hayvan sayısı</span><input id="heads" type="number" inputmode="numeric" min="1" max="5000" step="1"></label>
+      <label class="field"><span>Satış fiyatı (TL/kg canlı)</span><input id="satis" type="number" inputmode="decimal" min="0" step="1" placeholder="isteğe bağlı"></label>
+      <label class="field"><span>Alış fiyatı (TL/kg canlı)</span><input id="alis" type="number" inputmode="decimal" min="0" step="1" placeholder="isteğe bağlı"></label>
+    </div>
+    <p class="muted">Satış fiyatını yazarsanız program kârı hesaplar ve en kârlı artış hedefini bulur. Alış fiyatıyla besinin toplam kârını da gösterir.</p>
+    <p class="muted">Kesim kilosu ırkı belirtir: yerli ve melezlerde 450–550, Simental, Montofon, Holstein erkekte 600–700 kg yazın.</p>
+    <div class="alanlar">
+      <label class="field"><span>Irk (baba)</span><select id="irk"></select></label>
+      <label class="field"><span>Ana ırkı</span><select id="anaIrk"></select></label>
+      <label class="field genis"><span>Cinsiyet</span><select id="cinsiyet"><option value="tosun">Erkek (tosun)</option><option value="kastre">Kastre erkek (öküz)</option><option value="dise">Dişi (düve)</option></select></label>
+      <label class="field genis"><span>Ahır sıcaklığı, son bir ayın ortalaması (°C)</span><input id="sicaklik" type="number" inputmode="decimal" min="-30" max="45" step="1"></label>
+      <label class="field genis"><span>Sıcak stresi (öğleden sonra hayvanlara bakın)</span><select id="sicakStres"><option value="yok">Yok, normal soluyor</option><option value="hizli">Hızlı ve sık soluyor</option><option value="agiz">Ağzı açık, dili dışarıda soluyor</option></select></label>
+    </div>
+    <label class="check" id="geceSerinKutu"><input type="checkbox" id="geceSerin"> Geceleri serinliyor</label>
+    <p class="muted">Simental, Holstein ve Montofon, etçi ırklardan %20 daha fazla yaşama payı enerjisi harcar; tosun da öküz ve düveden %15 fazla. Soğukta hayvan daha çok yer ve harcar, 25 °C üstünde iştah düşer. Soğuk rüzgâr, ıslaklık ve çamurun etkisi hesaba girmez; açık ağılda kışın hedefi biraz düşük tutun.</p>
+  </section>
+
+  <section class="card">
+    <h2>Elinizdeki yemler</h2>
+    <p class="muted">Elinizde olanları işaretleyin, kilo fiyatını (TL) yazın. İşaretlediğiniz yemleri program <b>yalnızca ekonomikse ya da gerekiyorsa</b> kullanır. Bir yemi mutlaka kullanmak istiyorsanız altındaki <b>"Kesin kullan"</b>ı işaretleyin (en az 0,1 kg, minerallerde 5 g girer) ya da en az miktarını yazın. En fazla miktar yazarsanız onu aşmaz. Hazır yemlerde torbadaki protein ve enerji değerini yazın. Hepsi telefonda saklanır.</p>
+    <div id="feeds"></div>
+    <details id="kmRehber">
+      <summary>Silajın kuru maddesi nasıl ölçülür? (mikrodalga yöntemi)</summary>
+      <p class="muted">Silajın kuru maddesi tarladan tarlaya %28–40 arası değişir; rasyondaki en büyük hata kaynağıdır. Ayda bir ölçmek yeterlidir.</p>
+      <ol class="adimlar">
+        <li>Silo yüzünün birkaç yerinden avuç avuç alıp karıştırın; içinden yaklaşık <b>100 g</b> tartın (mutfak terazisi yeter).</li>
+        <li>Kâğıt tabağa ince yayın. Mikrodalgaya yanına <b>yarısı dolu bir bardak su</b> koyun (tabak ve fırın yanmasın).</li>
+        <li><b>2 dakika</b> ısıtıp tartın. Sonra <b>30 saniye</b> ısıtıp tartmaya devam edin; iki tartım arasında 1 g'dan az fark kalınca durun. Kenarlar kahverengileşirse hemen durun.</li>
+        <li>İlk ve son ağırlığı aşağıya yazın; program hesaplar.</li>
+      </ol>
+      <div class="row2">
+        <label class="field"><span>Yaş ağırlık (g)</span><input id="kmIlk" type="number" inputmode="decimal" min="1" step="1"></label>
+        <label class="field"><span>Kurumuş ağırlık (g)</span><input id="kmSon" type="number" inputmode="decimal" min="1" step="1"></label>
+      </div>
+      <label class="field"><span>Hangi yem?</span><select id="kmYem"></select></label>
+      <p id="kmSonuc" role="status"></p>
+      <button class="sec" id="kmUygula" disabled>Bu değeri kaydet</button>
+      <p class="muted">Ölçemiyorsanız avuç testi kaba bir fikir verir: sıkınca su damlıyorsa %25'in altı, el ıslanıyor ama damlamıyorsa %25–30, el nemli kalıyorsa %30–35, açınca dağılıyorsa %35'in üstü.</p>
+    </details>
+  </section>
+
+  <details class="card" id="analizCard">
+    <summary>Yem analizim var / yeni yem ekle</summary>
+    <p class="muted">Laboratuvar raporunuzdaki <b>kuru madde üzerinden</b> değerleri yazın; hesaplar tablo ortalaması yerine bunları kullanır. Listede olmayan bir yemi de buradan ekleyebilirsiniz. Enerji için ME yoksa TDN yazın, program çevirir.</p>
+    <label class="field"><span>Yem</span><select id="anYem"></select></label>
+    <div id="anForm"></div>
+    <p class="muted" id="anMsg" role="status"></p>
+  </details>
+
+  <section class="card">
+    <h2>Katkılar</h2>
+    <p class="muted">Etiketteki dozu ve fiyatı yazın. Katkılar besin hesabını değiştirmez, rasyona doz kadar eklenir.</p>
+    <div id="katkilar"></div>
+  </section>
+
+  <details class="card" id="advanced">
+    <summary>Ayarlar (isteğe bağlı)</summary>
+    <label class="field"><span>Kaba yem en az (% kuru madde)</span><input id="kabaMin" type="number" inputmode="decimal" min="10" max="80" step="5"></label>
+    <p class="muted">İşkembe sağlığı (asidoz ve şişmeye karşı) kuru maddede:</p>
+    <div class="row3">
+      <label class="field"><span>Nişasta en fazla (%)</span><input id="nisastaMax" type="number" inputmode="decimal" min="10" max="70" step="1"></label>
+      <label class="field"><span>Lif (NDF) en az (%)</span><input id="ndfMin" type="number" inputmode="decimal" min="5" max="60" step="1"></label>
+      <label class="field"><span>Yağ en fazla (%)</span><input id="yagMax" type="number" inputmode="decimal" min="2" max="12" step="0.5"></label>
+    </div>
+    <label class="field"><span>Stoklar kaç gün yetsin (boş bırakırsanız kesime kadar)</span><input id="stokGun" type="number" inputmode="numeric" min="1" max="2000" step="1" placeholder="kesime kadar"></label>
+    <label class="field"><span>Yem dışı günlük gider (TL/baş): işçilik, barınak, elektrik, faiz</span><input id="sabitGider" type="number" inputmode="decimal" min="0" max="2000" step="1"></label>
+    <p class="muted">Yazarsanız "en ekonomik artış hedefi" ve besi planı bu gideri de hesaba katar. Boş bırakılabilir.</p>
+    <div class="row2">
+      <label class="field"><span>Enerji ve protein en fazla (% fazla)</span><input id="tolerans" type="number" inputmode="decimal" min="1" max="50" step="1"></label>
+      <label class="field"><span>Kalsiyum ve fosfor en fazla (% fazla)</span><input id="tolMineral" type="number" inputmode="decimal" min="1" max="200" step="1"></label>
+    </div>
+    <label class="check"><input type="checkbox" id="mineralSiki"> Kalsiyum ve fosforu da sınırda tut</label>
+    <p class="muted">İhtiyaçlar her zaman en az %100 karşılanır; bu ayarlar ne kadar fazlasına izin verildiğini belirler. Kalsiyum ve fosforu sınırda tutmak rasyonu pahalılaştırabilir; kutuyu kapatırsanız en ucuz rasyon seçilir, fazlası yalnızca gösterilir (bu düzeyde fazlası zararsızdır).</p>
+  </details>
+
+  <button class="main" id="calc">Rasyonu hesapla</button>
+
+  <details class="card" id="evalCard">
+    <summary>Elimdeki rasyonu kontrol et</summary>
+    <p class="muted">Şu an hayvan başı günde verdiğiniz miktarları (yaş, kg) yazın. Yukarıda işaretli yemler listelenir; katkılar yukarıdaki dozlarla eklenir. Program, bu rasyonun ihtiyacı ne kadar karşıladığını ve hayvanın bununla ne kadar artış yapabileceğini hesaplar.</p>
+    <div id="evalList"></div>
+    <button class="main" id="evalBtn">Rasyonumu kontrol et</button>
+  </details>
+
+</div>
+<aside class="col-result">
+  <section class="card empty" id="sonucBos">
+    <h2>Sonuç</h2>
+    <p class="muted">Rasyon, günlük maliyet ve ihtiyaç karşılama burada görünür.</p>
+    <ol class="adimlar">
+      <li><b>Hayvan:</b> kilo, günlük artış, kesim kilosu ve sayıyı yazın.</li>
+      <li><b>Yemler:</b> elinizdekileri işaretleyin, kilo fiyatını yazın.</li>
+      <li><b>Katkılar:</b> kullandıklarınızın dozunu ve fiyatını yazın.</li>
+      <li>“Rasyonu hesapla”ya basın.</li>
+    </ol>
+  </section>
+  <section class="card result" id="result" hidden></section>
+  <section class="card muted">
+    <b>Önemli:</b> Hesap NRC besi sığırı standartlarına ve ortalama yem değerlerine dayanır. Yemlerinizin gerçek değeri farklı olabilir.
+    Yeni rasyona 2–3 haftada yavaş yavaş geçin, temiz su ve tuz/yalama taşı her zaman bulunsun. Hastalık belirtisi görürseniz veteriner hekime, rasyon için ziraat mühendisi veya zooteknistine danışın.
+    <br><br>Sürüm 3.1 · İnternet bağlantısı gerekmez
+  </section>
+</aside>
+
+
+</main>
+<script src="vendor/lp-solver.js"></script>
+<script src="model.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

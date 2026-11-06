@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FAF6F2">
+<meta name="surum" content="2.9">
+<title>İlaç Takip</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="uygulama">
+  <header class="ust">
+    <button class="ikon-dugme" data-act="ayarlar" aria-label="Ayarlar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16v1.8H4zm0 4.6h16v1.8H4zm0 4.6h16v1.8H4z"/></svg>
+    </button>
+    <div class="ust-yazi">
+      <h1 id="baslik">Bugün</h1>
+      <p id="altbaslik"></p>
+    </div>
+    <button class="ikon-dugme zil" id="zil" data-act="alarmKontrol" aria-label="Alarm kontrolü">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
+    </button>
+  </header>
+
+  <main id="ekran" tabindex="-1"></main>
+
+  <button id="ekle" class="fab" data-act="ilacEkle" aria-label="İlaç veya iğne ekle">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2Z"/></svg>
+    <span>Ekle</span>
+  </button>
+
+  <nav class="alt" id="altmenu">
+    <button data-sekme="bugun"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7Z"/></svg><span>Bugün</span></button>
+    <button data-sekme="ilaclar"><svg viewBox="0 0 24 24"><path d="M4.22 19.78a5.5 5.5 0 0 1 0-7.78l7.78-7.78a5.5 5.5 0 0 1 7.78 7.78l-7.78 7.78a5.5 5.5 0 0 1-7.78 0Zm2.12-6.37-.71.71a2.5 2.5 0 0 0 3.54 3.54l3.89-3.89-3.54-3.54-3.18 3.18Z"/></svg><span>İlaçlarım</span></button>
+    <button data-sekme="takvim"><svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 16H5V10h14v10Zm0-12H5V6h14v2ZM7 12h5v5H7v-5Z"/></svg><span>Takvim</span></button>
+    <button data-sekme="doktor"><svg viewBox="0 0 24 24"><path d="M10 3h4a2 2 0 0 1 2 2v2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3V5a2 2 0 0 1 2-2Zm0 4h4V5h-4v2Zm1 4v2.5H8.5v2H11V18h2v-2.5h2.5v-2H13V11h-2Z"/></svg><span>Doktor</span></button>
+  </nav>
+</div>
+
+<div id="sayfa" class="sayfa" hidden></div>
+<div id="alt-panel" class="alt-panel-kok" hidden></div>
+<div id="kilit" class="kilit" hidden></div>
+<div id="bildiri" class="bildiri" role="status" aria-live="polite"></div>
+
+<script src="model.js"></script>
+<script src="ikonlar.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

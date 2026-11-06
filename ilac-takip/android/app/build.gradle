@@ -1,0 +1,56 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bektas.ilactakip'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.bektas.ilactakip'
+        minSdk 24
+        targetSdk 34
+        versionCode 10
+        versionName '2.9'
+    }
+
+    // Uygulamanın ekranı www klasöründeki dosyalardır (ilac-takip/www).
+    sourceSets {
+        main {
+            assets.srcDirs = ['../../www']
+        }
+    }
+
+    // Sabit imza: GitHub Secrets'taki anahtar verilirse (-PimzaDosya=...) her derleme aynı anahtarla
+    // imzalanır; böylece güncellemeler eski sürümün üzerine kurulabilir. Anahtar depoda tutulmaz.
+    if (project.hasProperty('imzaDosya')) {
+        signingConfigs {
+            sabit {
+                storeFile file(project.property('imzaDosya'))
+                storePassword project.property('imzaParola')
+                keyAlias project.property('imzaAd')
+                keyPassword project.property('imzaParola')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (project.hasProperty('imzaDosya')) signingConfig signingConfigs.sabit
+        }
+        release {
+            minifyEnabled false
+            if (project.hasProperty('imzaDosya')) signingConfig signingConfigs.sabit
+        }
+    }
+
+    // Lint raporu iş akışında yazdırılır ve hata varsa derleme orada durdurulur.
+    lint {
+        abortOnError false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

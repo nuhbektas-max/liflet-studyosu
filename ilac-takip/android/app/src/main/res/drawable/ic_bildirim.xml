@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Kapsül -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M4.22,19.78a5.5,5.5 0,0 1,0 -7.78l7.78,-7.78a5.5,5.5 0,0 1,7.78 7.78l-7.78,7.78a5.5,5.5 0,0 1,-7.78 0zM6.34,13.41l-0.71,0.71a2.5,2.5 0,0 0,3.54 3.54l3.89,-3.89 -3.54,-3.54z" />
+</vector>

@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bektas.besirasyon'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.bektas.besirasyon'
+        minSdk 21
+        targetSdk 34
+        versionCode 22
+        versionName '3.1'
+    }
+
+    // Uygulamanın ekranı, web sürümüyle aynı dosyalardır (besi-rasyon/www).
+    sourceSets {
+        main {
+            assets.srcDirs = ['../../www']
+        }
+    }
+
+    // Sabit imza: GitHub Secrets'taki anahtar verilirse (-PimzaDosya=...) her derleme ayni anahtarla
+    // imzalanir; boylece guncellemeler eski surumun uzerine kurulabilir. Anahtar depoda tutulmaz.
+    if (project.hasProperty('imzaDosya')) {
+        signingConfigs {
+            sabit {
+                storeFile file(project.property('imzaDosya'))
+                storePassword project.property('imzaParola')
+                keyAlias project.property('imzaAd')
+                keyPassword project.property('imzaParola')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (project.hasProperty('imzaDosya')) signingConfig signingConfigs.sabit
+        }
+        release {
+            minifyEnabled false
+            if (project.hasProperty('imzaDosya')) signingConfig signingConfigs.sabit
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

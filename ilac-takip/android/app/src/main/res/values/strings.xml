@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">İlaç Takip</string>
+    <string name="oto_ad">İlaç Takip – WhatsApp otomatik gönderme</string>
+    <string name="oto_aciklama">İlaç alındığında ebeveyne hazırlanan WhatsApp mesajında Gönder düğmesine sizin yerinize basar. Yalnızca WhatsApp\'ta ve yalnızca İlaç Takip bir mesaj açtığında çalışır; başka hiçbir ekranı okumaz, hiçbir yere bilgi göndermez.</string>
+</resources>
