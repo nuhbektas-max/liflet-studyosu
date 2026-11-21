@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LABNET · Merkezi Laboratuvar Yönetim Sistemi</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23142D4C'/%3E%3Cpath d='M9 4h6M10 4v6l-4 8a1.5 1.5 0 0 0 1.3 2h9.4a1.5 1.5 0 0 0 1.3-2l-4-8V4' fill='none' stroke='%231E7E74' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+:root{
+  --navy:#142D4C; --navy-2:#1c3a60; --navy-3:#0e2139;
+  --teal:#1E7E74; --teal-2:#25998d; --teal-soft:#e3f3f1;
+  --bg:#f3f6f9; --card:#ffffff; --line:#dde4ec; --text:#1d2b3a; --muted:#64748b;
+  --ok:#1E7E74; --ok-bg:#e3f3f1; --warn:#a86500; --warn-bg:#fff4dc; --bad:#b42318; --bad-bg:#fdecea;
+  --info:#1f5fa8; --info-bg:#e6effa; --gray-bg:#eef1f5;
+  --radius:10px; --shadow:0 1px 2px rgba(20,45,76,.06),0 2px 10px rgba(20,45,76,.06);
+  --font:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--font);font-size:14px;color:var(--text);background:var(--bg);line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--teal)}
+svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+.hidden{display:none!important}
+
+/* ---------- Giris ---------- */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
+  background:linear-gradient(135deg,var(--navy) 0%,var(--navy-3) 55%,#103f45 100%)}
+.login-box{display:grid;grid-template-columns:1fr 1fr;max-width:900px;width:100%;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.login-side{background:var(--navy);color:#fff;padding:40px 36px;display:flex;flex-direction:column;gap:18px;position:relative}
+.login-side::after{content:"";position:absolute;left:0;bottom:0;right:0;height:6px;background:var(--teal)}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-logo{width:44px;height:44px;border-radius:10px;background:var(--teal);display:flex;align-items:center;justify-content:center}
+.brand-logo svg{width:26px;height:26px;stroke:#fff}
+.brand b{font-size:22px;letter-spacing:3px}
+.brand small{display:block;color:#a9c0d8;font-size:12px;letter-spacing:.3px}
+.login-side h2{margin:8px 0 0;font-size:20px;font-weight:600}
+.login-side p{margin:0;color:#c5d5e6}
+.login-feat{list-style:none;padding:0;margin:6px 0 0;display:grid;gap:10px}
+.login-feat li{display:flex;gap:10px;align-items:center;color:#dce7f2}
+.login-feat svg{stroke:#5fd0c3}
+.login-form{padding:40px 36px}
+.login-form h3{margin:0 0 4px;font-size:20px;color:var(--navy)}
+.login-form .sub{color:var(--muted);margin:0 0 22px}
+.demo{margin-top:22px;border-top:1px dashed var(--line);padding-top:16px}
+.demo-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.demo-grid button{padding:8px 10px;border:1px solid var(--line);background:#f8fafc;border-radius:8px;cursor:pointer;text-align:left;font-size:13px}
+.demo-grid button:hover{border-color:var(--teal);background:var(--teal-soft)}
+.demo-grid button small{display:block;color:var(--muted);font-size:11px}
+
+/* ---------- Form ogeleri ---------- */
+label.f{display:block;margin-bottom:12px}
+label.f>span{display:block;font-size:12.5px;font-weight:600;color:#334155;margin-bottom:5px}
+.inp,select.inp,textarea.inp{width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;outline:none;transition:border .15s,box-shadow .15s}
+.inp:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(30,126,116,.15)}
+textarea.inp{resize:vertical;min-height:70px}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>*{flex:1 1 160px}
+.check{display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer}
+.check input{width:16px;height:16px;accent-color:var(--teal)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 15px;border-radius:8px;border:1px solid transparent;cursor:pointer;font-weight:600;font-size:13.5px;white-space:nowrap;transition:background .15s,border-color .15s}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--teal);color:#fff}
+.btn-primary:hover:not(:disabled){background:#186a62}
+.btn-navy{background:var(--navy);color:#fff}
+.btn-navy:hover:not(:disabled){background:var(--navy-2)}
+.btn-ghost{background:#fff;border-color:#cbd5e1;color:var(--text)}
+.btn-ghost:hover:not(:disabled){border-color:var(--teal);color:var(--teal)}
+.btn-danger{background:#fff;border-color:#f1b5ae;color:var(--bad)}
+.btn-danger:hover:not(:disabled){background:var(--bad-bg)}
+.btn-sm{padding:6px 10px;font-size:12.5px}
+.btn-block{width:100%}
+
+/* ---------- Iskelet ---------- */
+#app{display:flex;min-height:100vh}
+.side{width:248px;flex:none;background:var(--navy);color:#cfdbe8;display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;z-index:40;transition:transform .2s}
+.side .brand{padding:18px 18px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.side .brand b{font-size:19px;color:#fff}
+.side .brand-logo{width:38px;height:38px}
+.nav{padding:12px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow:auto}
+.nav-label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#7d97b3;padding:12px 12px 6px}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;color:#cfdbe8;text-decoration:none;cursor:pointer;position:relative}
+.nav a:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav a.active{background:rgba(30,126,116,.28);color:#fff}
+.nav a.active::before{content:"";position:absolute;left:-10px;top:8px;bottom:8px;width:4px;border-radius:0 4px 4px 0;background:var(--teal-2)}
+.nav .count{margin-left:auto;background:var(--teal);color:#fff;border-radius:10px;font-size:11px;padding:1px 7px;font-weight:700}
+.side-foot{padding:12px 10px;border-top:1px solid rgba(255,255,255,.08);display:grid;gap:2px}
+.side-foot a{display:flex;gap:11px;align-items:center;padding:9px 12px;border-radius:8px;color:#cfdbe8;cursor:pointer}
+.side-foot a:hover{background:rgba(255,255,255,.06);color:#fff}
+.net-note{font-size:11px;color:#7d97b3;padding:6px 12px 2px;display:flex;gap:6px;align-items:center}
+.net-note svg{width:13px;height:13px}
+.main{flex:1;margin-left:248px;min-width:0;display:flex;flex-direction:column}
+.top{height:62px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 24px;position:sticky;top:0;z-index:30}
+.top h1{font-size:18px;margin:0;color:var(--navy);font-weight:650;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.isg-s{display:none}
+.top .menu-btn{display:none;background:none;border:0;cursor:pointer;padding:6px;color:var(--navy)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:12px;flex:none}
+.user-chip{display:flex;align-items:center;gap:10px}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.user-chip .nm{font-weight:600;line-height:1.15}
+.user-chip .rl{font-size:12px;color:var(--muted)}
+.content{padding:22px 24px 40px;max-width:1400px;width:100%}
+.overlay{display:none}
+
+/* ---------- Bilesenler ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-h{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.card-h h3{margin:0;font-size:15px;color:var(--navy)}
+.card-h .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.card-b{padding:16px 18px}
+.grid{display:grid;gap:16px}
+.grid>*{min-width:0}
+select.inp{max-width:100%;text-overflow:ellipsis}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.stat{padding:16px 18px;display:flex;gap:14px;align-items:center}
+.stat .ic{width:46px;height:46px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:none}
+.stat .ic svg{width:22px;height:22px}
+.stat .v{font-size:24px;font-weight:700;color:var(--navy);line-height:1.1}
+.stat .l{font-size:12.5px;color:var(--muted)}
+.ic-navy{background:#e7edf5;color:var(--navy)}.ic-teal{background:var(--teal-soft);color:var(--teal)}
+.ic-amber{background:var(--warn-bg);color:var(--warn)}.ic-blue{background:var(--info-bg);color:var(--info)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11.5px;font-weight:650;white-space:nowrap;border:1px solid transparent}
+.badge svg{width:13px;height:13px}
+.b-ok{background:var(--ok-bg);color:var(--ok);border-color:#bfe3de}
+.b-warn{background:var(--warn-bg);color:var(--warn);border-color:#f3dca8}
+.b-bad{background:var(--bad-bg);color:var(--bad);border-color:#f5c6c0}
+.b-info{background:var(--info-bg);color:var(--info);border-color:#c5d9f1}
+.b-gray{background:var(--gray-bg);color:#475569;border-color:#dbe1e8}
+.b-navy{background:#e7edf5;color:var(--navy);border-color:#cfdae7}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;padding:2px 8px;border-radius:5px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
+.tag svg{width:12px;height:12px}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.empty svg{width:36px;height:36px;stroke:#b6c2d0;display:block;margin:0 auto 8px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar .inp{width:auto;flex:1 1 200px}
+.search{position:relative;flex:2 1 260px}
+.search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);width:16px;height:16px}
+.search .inp{padding-left:34px;width:100%}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+.tabs button{background:none;border:0;padding:10px 14px;cursor:pointer;color:var(--muted);font-weight:600;border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap;display:flex;gap:7px;align-items:center}
+.tabs button:hover{color:var(--navy)}
+.tabs button.active{color:var(--teal);border-bottom-color:var(--teal)}
+.tabs .count{background:var(--teal);color:#fff;border-radius:10px;font-size:11px;padding:0 7px}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:8px;margin-bottom:16px;border:1px solid}
+.banner svg{margin-top:1px}
+.banner-warn{background:#fff8e1;border-color:#f3d27a;color:#7a4b00}
+.banner-info{background:var(--info-bg);border-color:#c5d9f1;color:#17457a}
+table.t{width:100%;border-collapse:collapse}
+table.t th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:650;padding:10px 12px;border-bottom:1px solid var(--line);background:#f8fafc;white-space:nowrap}
+table.t td{padding:10px 12px;border-bottom:1px solid #edf1f5;vertical-align:middle}
+table.t tr:last-child td{border-bottom:0}
+table.t tr:hover td{background:#fafcfd}
+.tbl-wrap{overflow-x:auto}
+.list-item{display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #edf1f5}
+.list-item:last-child{border-bottom:0}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.bar{height:8px;background:#edf1f5;border-radius:6px;overflow:hidden}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--teal-2));border-radius:6px}
+
+/* Cihaz kartlari */
+.dev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px}
+.dev{display:flex;flex-direction:column}
+.dev-top{padding:16px 18px 12px;display:flex;gap:12px}
+.dev-ic{width:44px;height:44px;border-radius:10px;background:#e7edf5;color:var(--navy);display:flex;align-items:center;justify-content:center;flex:none}
+.dev-ic svg{width:22px;height:22px}
+.dev h4{margin:0 0 2px;font-size:15px;color:var(--navy)}
+.dev .meta{font-size:12.5px;color:var(--muted)}
+.dev-tags{display:flex;flex-wrap:wrap;gap:6px;padding:0 18px 10px}
+.dev-notes{padding:0 18px 12px;font-size:12.5px;color:#475569;flex:1}
+.dev-foot{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--line);background:#fafcfd;border-radius:0 0 var(--radius) var(--radius)}
+.dev-foot .btn{margin-left:auto}
+.cert-grid{grid-template-columns:minmax(280px,360px) minmax(0,1fr);align-items:start}
+.lab-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:18px}
+.lab-chip{padding:12px 14px;display:flex;gap:10px;align-items:flex-start;cursor:pointer;transition:border-color .15s}
+.lab-chip:hover,.lab-chip.sel{border-color:var(--teal)}
+.lab-chip.sel{background:var(--teal-soft)}
+.lab-chip b{color:var(--navy);display:block;font-size:13.5px}
+
+/* Randevu kartlari ve adimlar */
+.res{padding:16px 18px;margin-bottom:12px}
+.res-head{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.res-head h4{margin:0;font-size:15px;color:var(--navy)}
+.res-head .when{display:flex;gap:6px;align-items:center;color:#334155;font-weight:600;font-size:13px}
+.res-body{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 18px;font-size:13px}
+.res-body div span{color:var(--muted)}
+.res-notes{margin-top:10px;display:grid;gap:6px}
+.note{background:#f8fafc;border-left:3px solid var(--line);padding:7px 10px;border-radius:0 6px 6px 0;font-size:12.5px}
+.note b{color:var(--navy)}
+.res-actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.res-actions textarea{flex:1 1 260px;min-height:38px}
+.steps{display:flex;align-items:center;margin:14px 0 2px;gap:0}
+.step{display:flex;align-items:center;gap:8px;flex:none}
+.step .c{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:2px solid #cbd5e1;color:#94a3b8;background:#fff}
+.step .c svg{width:15px;height:15px}
+.step .s{font-size:12px;color:var(--muted);line-height:1.2}
+.step .s b{display:block;color:#334155;font-size:12.5px}
+.step.done .c{background:var(--teal);border-color:var(--teal);color:#fff}
+.step.now .c{border-color:#e0a106;color:var(--warn);background:var(--warn-bg)}
+.step.fail .c{background:var(--bad);border-color:var(--bad);color:#fff}
+.step-line{flex:1;height:2px;background:#e2e8f0;margin:0 10px;min-width:20px}
+.step-line.done{background:var(--teal)}
+
+/* Takvim */
+.cal-wrap{overflow-x:auto}
+.cal{display:grid;min-width:720px;position:relative}
+.cal-hd{background:#f8fafc;border-bottom:1px solid var(--line);padding:8px 6px;text-align:center;font-size:12.5px;font-weight:650;color:var(--navy)}
+.cal-hd.today{background:var(--teal-soft);color:var(--teal)}
+.cal-hd small{display:block;font-weight:500;color:var(--muted)}
+.cal-times{position:relative;border-right:1px solid var(--line)}
+.cal-times div{position:absolute;right:6px;font-size:11px;color:var(--muted);transform:translateY(-50%)}
+.cal-times div:first-child{transform:none}.cal-times div:last-child{transform:translateY(-100%)}
+.cal-col{position:relative;border-right:1px solid #edf1f5;background:repeating-linear-gradient(to bottom,#fff 0,#fff 39px,#eef2f6 39px,#eef2f6 40px)}
+.cal-col.today{background:repeating-linear-gradient(to bottom,#f6fbfa 0,#f6fbfa 39px,#e5efed 39px,#e5efed 40px)}
+.ev{position:absolute;left:4px;right:4px;border-radius:6px;padding:4px 6px;font-size:11.5px;overflow:hidden;border-left:4px solid;line-height:1.25;cursor:default}
+.ev b{display:block;font-size:11.5px}
+.ev-approved{background:#d9efec;border-color:var(--teal);color:#0f4e47}
+.ev-pending_advisor,.ev-pending_lab{background:#fff1cf;border-color:#e0a106;color:#6b4300}
+.ev-completed{background:#e8ecf1;border-color:#8a9bb0;color:#3b4a5c}
+.ev.mine{box-shadow:inset 0 0 0 1.5px var(--navy)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+/* Modal ve toast */
+.modal-bg{position:fixed;inset:0;background:rgba(14,33,57,.55);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:100;overflow:auto}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:620px;box-shadow:0 20px 50px rgba(0,0,0,.3);animation:pop .15s ease-out}
+@keyframes pop{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.modal-h{display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line)}
+.modal-h h3{margin:0;font-size:16px;color:var(--navy)}
+.modal-h button{margin-left:auto;background:none;border:0;cursor:pointer;color:var(--muted);padding:4px}
+.modal-b{padding:18px 20px}
+.modal-f{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;background:#fafcfd;border-radius:0 0 12px 12px}
+#toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:200;max-width:min(380px,calc(100vw - 36px))}
+.toast{display:flex;gap:10px;align-items:flex-start;background:#fff;border-radius:9px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.18);border-left:5px solid var(--teal);animation:pop .2s ease-out;font-size:13.5px}
+.toast.err{border-left-color:var(--bad)}.toast.err svg{color:var(--bad)}
+.toast.warn{border-left-color:#e0a106}
+.toast svg{color:var(--teal);margin-top:1px}
+.info-box{background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px}
+.slots{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:13px}
+.kv span{color:var(--muted)}
+.loading{padding:40px;text-align:center;color:var(--muted)}
+.spin{width:22px;height:22px;border:3px solid #dbe4ee;border-top-color:var(--teal);border-radius:50%;animation:sp 0.8s linear infinite;margin:0 auto 8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+code{background:#eef3f7;padding:1px 5px;border-radius:4px;font-size:12.5px}
+
+/* ---------- Duyarli ---------- */
+@media (max-width:1100px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:1fr 1fr}}
+@media (max-width:860px){
+  .login-box{grid-template-columns:1fr}.login-side{padding:26px}.login-feat{display:none}
+  .side{transform:translateX(-100%)}.side.open{transform:none}
+  .overlay.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:35}
+  .main{margin-left:0}.top .menu-btn{display:block}.top{padding:0 14px}
+  .content{padding:16px}.g2,.g3{grid-template-columns:1fr}.cert-grid{grid-template-columns:minmax(0,1fr)}
+  .user-chip .txt{display:none}.top h1{font-size:16px}
+  .isg-l{display:none}.isg-s{display:inline}
+}
+@media (max-width:520px){.g4{grid-template-columns:1fr}.login-form{padding:26px}.demo-grid{grid-template-columns:1fr}.kv{grid-template-columns:1fr}
+  .steps{flex-direction:column;align-items:flex-start;gap:6px}.step-line{display:none}}
+</style>
+</head>
+<body>
+
+<!-- ================= GIRIS ================= -->
+<div id="login" class="hidden">
+  <div class="login-box">
+    <div class="login-side">
+      <div class="brand">
+        <div class="brand-logo" data-icon="flask"></div>
+        <div><b>LABNET</b><small>Merkezi Laboratuvar Yönetim Sistemi</small></div>
+      </div>
+      <h2>Araştırma altyapısına güvenli ve planlı erişim</h2>
+      <p>Cihaz rezervasyonu, iki aşamalı onay, kullanım sertifikası ve İSG takibi tek panelde.</p>
+      <ul class="login-feat">
+        <li><span data-icon="calendar"></span>Çakışmasız cihaz randevu takvimi</li>
+        <li><span data-icon="check2"></span>Danışman ve laboratuvar sorumlusu onayı</li>
+        <li><span data-icon="award"></span>Sertifika ve İSG eğitimi denetimi</li>
+        <li><span data-icon="shield"></span>Yalnızca kampüs ağı / VPN erişimi</li>
+      </ul>
+    </div>
+    <form class="login-form" id="loginForm" autocomplete="on">
+      <h3>Oturum Aç</h3>
+      <p class="sub">Kurumsal e-posta adresiniz ve şifrenizle giriş yapın.</p>
+      <label class="f"><span>E-posta</span><input class="inp" type="email" name="email" id="lgEmail" required autocomplete="username" placeholder="ad.soyad@universite.edu.tr"></label>
+      <label class="f"><span>Şifre</span><input class="inp" type="password" name="password" id="lgPass" required autocomplete="current-password"></label>
+      <button class="btn btn-primary btn-block" type="submit" id="lgBtn"><span data-icon="login"></span>Giriş Yap</button>
+      <div class="demo">
+        <div class="demo-title">Demo hesapları (şifre: 1234)</div>
+        <div class="demo-grid">
+          <button type="button" data-demo="yonetici@universite.edu.tr">Yönetici<small>Sistem Yöneticisi</small></button>
+          <button type="button" data-demo="danisman@universite.edu.tr">Danışman<small>Prof. Dr. Ahmet Kaya</small></button>
+          <button type="button" data-demo="sorumlu@universite.edu.tr">Lab Sorumlusu<small>Öğr. Gör. Selin Demir</small></button>
+          <button type="button" data-demo="ali.yilmaz@ogr.universite.edu.tr">Öğrenci<small>Ali Yılmaz</small></button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= UYGULAMA ================= -->
+<div id="app" class="hidden">
+  <aside class="side" id="side">
+    <div class="brand">
+      <div class="brand-logo" data-icon="flask"></div>
+      <div><b>LABNET</b><small>Merkezi Laboratuvar</small></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <a id="pwBtn"><span data-icon="key"></span>Şifre Değiştir</a>
+      <a id="logoutBtn"><span data-icon="logout"></span>Çıkış Yap</a>
+      <div class="net-note"><span data-icon="shield"></span>Kampüs ağı içi uygulama</div>
+    </div>
+  </aside>
+  <div class="overlay" id="overlay"></div>
+  <div class="main">
+    <header class="top">
+      <button class="menu-btn" id="menuBtn" aria-label="Menü"><span data-icon="menu"></span></button>
+      <h1 id="pageTitle">Gösterge Paneli</h1>
+      <div class="top-right">
+        <span id="isgBadge"></span>
+        <div class="user-chip">
+          <div class="avatar" id="avatar"></div>
+          <div class="txt"><div class="nm" id="uName"></div><div class="rl" id="uRole"></div></div>
+        </div>
+      </div>
+    </header>
+    <main class="content" id="content"></main>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+/* ---------- Ikonlar (inline SVG) ---------- */
+const ICONS = {
+  flask:'<path d="M9 3h6M10 3v6.5L4.6 18.4A1.8 1.8 0 0 0 6.2 21h11.6a1.8 1.8 0 0 0 1.6-2.6L14 9.5V3"/><path d="M7.5 15h9"/>',
+  dash:'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+  micro:'<path d="M6 18h8M3 22h18M14 22a7 7 0 1 0 0-14h-1"/><path d="M9 14h2M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z"/><path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/>',
+  calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  tool:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  key:'<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  login:'<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  check2:'<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/>',
+  x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  xc:'<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>',
+  alert:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  award:'<circle cx="12" cy="8" r="6"/><path d="M15.5 13 17 22l-5-3-5 3 1.5-9"/>',
+  hard:'<path d="M2 18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v2z"/><path d="M10 15V6.5a2 2 0 0 1 4 0V15M4 15v-3a8 8 0 0 1 6-7.7M20 15v-3a8 8 0 0 0-6-7.7"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  menu:'<path d="M3 12h18M3 6h18M3 18h18"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+  network:'<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8"/>',
+  mail:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+  db:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  building:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>',
+  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  chev_l:'<path d="m15 18-6-6 6-6"/>', chev_r:'<path d="m9 18 6-6-6-6"/>',
+  edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  trash:'<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',
+  send:'<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
+  plug:'<path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>',
+  cpu:'<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/>',
+  dna:'<path d="M2 15c6.7-6 13.3 0 20-6M2 9c6.7 6 13.3 0 20 6M5 11.5v1M9 10v4M15 10v4M19 11.5v1"/>',
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+};
+function ic(name, cls){ return '<svg class="i '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true">'+(ICONS[name]||'')+'</svg>'; }
+function hydrateIcons(root){ (root||document).querySelectorAll('[data-icon]').forEach(el=>{ if(!el.dataset.done){ el.insertAdjacentHTML('afterbegin', ic(el.dataset.icon)); el.dataset.done='1'; } }); }
+
+/* ---------- Yardimcilar ---------- */
+const $ = (s, r) => (r||document).querySelector(s);
+const $$ = (s, r) => Array.from((r||document).querySelectorAll(s));
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(d){ if(!d) return '-'; const p=String(d).slice(0,10).split('-'); return p.length===3? p[2]+'.'+p[1]+'.'+p[0] : esc(d); }
+function fmtDT(s){ if(!s) return '-'; return fmtDate(s.slice(0,10))+' '+s.slice(11,16); }
+function iso(d){ const z=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function parseISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+const DAYS=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
+const DAYS_S=['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+function toMin(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
+function initials(n){ return String(n||'?').replace(/(Prof\.|Doç\.|Dr\.|Öğr\.|Gör\.)/g,'').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toLocaleUpperCase('tr'); }
+
+function toast(msg, type){
+  const el=document.createElement('div');
+  el.className='toast '+(type||'');
+  el.innerHTML=ic(type==='err'?'xc':type==='warn'?'alert':'check2')+'<div>'+esc(msg)+'</div>';
+  $('#toasts').appendChild(el);
+  setTimeout(()=>{ el.style.transition='opacity .3s'; el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, type==='err'?6000:3800);
+}
+
+async function api(path, opts){
+  opts=opts||{};
+  const init={method:opts.method||'GET', credentials:'same-origin', headers:{'Accept':'application/json'}};
+  if(init.method!=='GET'){ init.headers['X-LABNET']='1'; }
+  if(opts.body!==undefined){ init.headers['Content-Type']='application/json'; init.body=JSON.stringify(opts.body); }
+  let res;
+  try{ res=await fetch(path, init); }
+  catch(e){ throw new Error('Sunucuya ulaşılamadı. Ağ bağlantınızı (kampüs ağı / VPN) kontrol edin.'); }
+  let data=null;
+  try{ data=await res.json(); }catch(e){ data=null; }
+  if(res.status===401 && path!=='/api/login' && path!=='/api/me'){ showLogin(); throw new Error((data&&data.error)||'Oturumunuz sona erdi, lütfen tekrar giriş yapın.'); }
+  if(!res.ok){ throw new Error((data&&data.error)||('İstek başarısız oldu (HTTP '+res.status+').')); }
+  return data;
+}
+async function act(btn, fn){
+  if(btn){ btn.disabled=true; }
+  try{ return await fn(); }
+  catch(e){ toast(e.message,'err'); }
+  finally{ if(btn){ btn.disabled=false; } }
+}
+function loading(){ return '<div class="loading"><div class="spin"></div>Yükleniyor…</div>'; }
+function empty(msg, icon){ return '<div class="empty">'+ic(icon||'inbox')+esc(msg)+'</div>'; }
+
+/* ---------- Modal ---------- */
+function openModal(title, bodyHtml, footHtml, opts){
+  const root=$('#modalRoot');
+  root.innerHTML='<div class="modal-bg"><div class="modal" style="'+(opts&&opts.wide?'max-width:820px':'')+'">'+
+    '<div class="modal-h"><h3>'+esc(title)+'</h3><button type="button" data-close aria-label="Kapat">'+ic('x')+'</button></div>'+
+    '<div class="modal-b">'+bodyHtml+'</div>'+(footHtml?'<div class="modal-f">'+footHtml+'</div>':'')+'</div></div>';
+  const bg=$('.modal-bg',root);
+  bg.addEventListener('mousedown', e=>{ if(e.target===bg) closeModal(); });
+  $$('[data-close]',root).forEach(b=>b.addEventListener('click', closeModal));
+  hydrateIcons(root);
+  return $('.modal',root);
+}
+function closeModal(){ $('#modalRoot').innerHTML=''; }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+/* ---------- Durum rozetleri ---------- */
+const RES_BADGE={pending_advisor:'b-warn',pending_lab:'b-warn',approved:'b-ok',rejected:'b-bad',completed:'b-navy',cancelled:'b-gray'};
+const RES_ICON={pending_advisor:'clock',pending_lab:'clock',approved:'check2',rejected:'xc',completed:'award',cancelled:'x'};
+const RES_LABEL={pending_advisor:'Danışman Onayı Bekliyor',pending_lab:'Lab. Sorumlusu Onayı Bekliyor',approved:'Onaylandı',rejected:'Reddedildi',completed:'Tamamlandı',cancelled:'İptal Edildi'};
+function resBadge(st){ return '<span class="badge '+RES_BADGE[st]+'">'+ic(RES_ICON[st])+esc(RES_LABEL[st]||st)+'</span>'; }
+const DEV_BADGE={active:['b-ok','Aktif','check2'],maintenance:['b-warn','Bakımda','tool'],broken:['b-bad','Arızalı','alert']};
+function devBadge(st){ const b=DEV_BADGE[st]||['b-gray',st,'info']; return '<span class="badge '+b[0]+'">'+ic(b[2])+b[1]+'</span>'; }
+function deviceIcon(name){ const n=(name||'').toLowerCase(); if(n.includes('mikroskop')) return 'micro'; if(n.includes('pcr')||n.includes('biyo')) return 'dna'; if(n.includes('gpu')||n.includes('hesaplama')) return 'cpu'; return 'flask'; }
+
+/* ---------- Durum ---------- */
+const S={ me:null, page:'dashboard', counts:{}, devices:[], labs:[], advisors:[], resTab:'mine', labTab:'devices', adminTab:'users',
+  cal:{mode:'week', start:null, device:null}, catalog:{q:'', lab:'', status:''} };
+
+const PAGES={
+  dashboard:{title:'Gösterge Paneli', nav:'Gösterge Paneli', icon:'dash', roles:null, render:renderDashboard},
+  catalog:{title:'Laboratuvarlar ve Cihaz Kataloğu', nav:'Cihaz Kataloğu', icon:'micro', roles:null, render:renderCatalog},
+  reservations:{title:'Randevular ve Onay Yönetimi', nav:'Randevular / Onaylar', icon:'calendar', roles:null, render:renderReservations},
+  labops:{title:'Lab. Sorumlusu İşlemleri', nav:'Lab. Sorumlusu İşlemleri', icon:'tool', roles:['lab_manager','admin'], render:renderLabOps},
+  admin:{title:'Sistem Yönetimi', nav:'Sistem Yönetimi', icon:'settings', roles:['admin'], render:renderAdmin}
+};
+
+function buildNav(){
+  const r=S.me.role;
+  let h='<div class="nav-label">Menü</div>';
+  for(const [k,p] of Object.entries(PAGES)){
+    if(p.roles && !p.roles.includes(r)) continue;
+    const cnt = k==='reservations' && S.counts.pending ? '<span class="count">'+S.counts.pending+'</span>' : '';
+    h+='<a data-page="'+k+'" class="'+(S.page===k?'active':'')+'">'+ic(p.icon)+'<span>'+esc(k==='reservations'&&r==='student'?'Randevularım':p.nav)+'</span>'+cnt+'</a>';
+  }
+  $('#nav').innerHTML=h;
+  $$('#nav a').forEach(a=>a.addEventListener('click',()=>{ go(a.dataset.page); closeSide(); }));
+}
+function go(page){
+  if(!PAGES[page]) page='dashboard';
+  const p=PAGES[page];
+  if(p.roles && !p.roles.includes(S.me.role)) page='dashboard';
+  S.page=page;
+  if(location.hash!=='#'+page) history.replaceState(null,'','#'+page);
+  $('#pageTitle').textContent=PAGES[page].title;
+  buildNav();
+  $('#content').innerHTML=loading();
+  PAGES[page].render().catch(e=>{ $('#content').innerHTML='<div class="banner banner-warn">'+ic('alert')+'<div>'+esc(e.message)+'</div></div>'; });
+}
+function closeSide(){ $('#side').classList.remove('open'); $('#overlay').classList.remove('open'); }
+
+function renderHeader(){
+  const m=S.me;
+  $('#uName').textContent=m.full_name;
+  $('#uRole').textContent=m.role_label;
+  $('#avatar').textContent=initials(m.full_name);
+  $('#isgBadge').innerHTML = m.isg_valid
+    ? '<span class="badge b-ok" title="İSG eğitimi geçerli: '+fmtDate(m.isg_valid_until)+'">'+ic('hard')+'<span class="isg-l">İSG Geçerli · '+fmtDate(m.isg_valid_until)+'</span><span class="isg-s">İSG</span></span>'
+    : '<span class="badge b-bad" title="İSG eğitimi geçerli değil">'+ic('hard')+'<span class="isg-l">İSG '+(m.isg_valid_until?'Süresi Doldu · '+fmtDate(m.isg_valid_until):'Tanımsız')+'</span><span class="isg-s">İSG ✕</span></span>';
+}
+
+async function refreshCounts(){
+  try{ const d=await api('/api/dashboard'); S.counts.pending = S.me.role==='student'?0:d.pending; buildNav(); return d; }catch(e){ return null; }
+}
+
+/* ---------- Giris / cikis ---------- */
+function showLogin(){ S.me=null; $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); closeModal(); setTimeout(()=>$('#lgEmail').focus(),50); }
+async function startApp(){
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  renderHeader();
+  await refreshCounts();
+  go((location.hash||'').replace('#','')||'dashboard');
+}
+$('#loginForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const btn=$('#lgBtn');
+  await act(btn, async ()=>{
+    await api('/api/login',{method:'POST', body:{email:$('#lgEmail').value, password:$('#lgPass').value}});
+    S.me=await api('/api/me');
+    $('#lgPass').value='';
+    toast('Hoş geldiniz, '+S.me.full_name+'.');
+    await startApp();
+  });
+});
+$$('[data-demo]').forEach(b=>b.addEventListener('click',()=>{ $('#lgEmail').value=b.dataset.demo; $('#lgPass').value='1234'; $('#loginForm').requestSubmit(); }));
+$('#logoutBtn').addEventListener('click', async ()=>{ try{ await api('/api/logout',{method:'POST'}); }catch(e){} toast('Oturum kapatıldı.'); location.hash=''; showLogin(); });
+$('#menuBtn').addEventListener('click',()=>{ $('#side').classList.add('open'); $('#overlay').classList.add('open'); });
+$('#overlay').addEventListener('click', closeSide);
+$('#pwBtn').addEventListener('click',()=>{
+  const m=openModal('Şifre Değiştir',
+    '<label class="f"><span>Mevcut şifre</span><input class="inp" type="password" id="pwOld" autocomplete="current-password"></label>'+
+    '<label class="f"><span>Yeni şifre</span><input class="inp" type="password" id="pwNew" autocomplete="new-password"></label>'+
+    '<label class="f"><span>Yeni şifre (tekrar)</span><input class="inp" type="password" id="pwNew2" autocomplete="new-password"></label>',
+    '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="pwSave">Kaydet</button>');
+  $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
+  $('#pwSave').addEventListener('click', e=>act(e.currentTarget, async ()=>{
+    if($('#pwNew').value!==$('#pwNew2').value) throw new Error('Yeni şifreler birbiriyle uyuşmuyor.');
+    await api('/api/me/password',{method:'POST', body:{old_password:$('#pwOld').value, new_password:$('#pwNew').value}});
+    closeModal(); toast('Şifreniz değiştirildi.');
+  }));
+});
+window.addEventListener('hashchange',()=>{ if(S.me){ const p=location.hash.replace('#',''); if(p && p!==S.page) go(p); } });
+
+/* =========================================================
+   1. GOSTERGE PANELI
+   ========================================================= */
+const ACTION_LABELS={GIRIS:'Giriş',CIKIS:'Çıkış',GIRIS_BASARISIZ:'Başarısız giriş',RANDEVU_OLUSTUR:'Randevu talebi',RANDEVU_IPTAL:'Randevu iptali',
+  RANDEVU_TAMAMLANDI:'Kullanım raporu',DANISMAN_ONAY:'Danışman onayı',DANISMAN_RET:'Danışman reddi',LAB_ONAY:'Lab. onayı',LAB_RET:'Lab. reddi',
+  CIHAZ_DURUM:'Cihaz durumu',CIHAZ_EKLENDI:'Cihaz eklendi',CIHAZ_GUNCELLENDI:'Cihaz güncellendi',SERTIFIKA_TANIMLANDI:'Sertifika tanımlandı',
+  SERTIFIKA_YENILENDI:'Sertifika yenilendi',SERTIFIKA_IPTAL:'Sertifika iptali',KULLANICI_EKLENDI:'Kullanıcı eklendi',KULLANICI_GUNCELLENDI:'Kullanıcı güncellendi',
+  AYAR_GUNCELLENDI:'Ayar güncellendi',LDAP_TEST:'LDAP testi',SMTP_TEST:'SMTP testi',YEDEK_INDIRILDI:'Yedek indirildi',KURULUM:'Kurulum',
+  EPOSTA_HATASI:'E-posta hatası',LDAP_HATASI:'LDAP hatası',SIFRE_DEGISTI:'Şifre değişikliği',LAB_EKLENDI:'Laboratuvar eklendi',LAB_GUNCELLENDI:'Laboratuvar güncellendi',LDAP_YENI_KULLANICI:'LDAP ile yeni kullanıcı'};
+
+async function renderDashboard(){
+  const d=await api('/api/dashboard');
+  S.counts.pending = S.me.role==='student'?0:d.pending; buildNav();
+  const role=S.me.role;
+  const pendLabel = role==='student'?'Onay Sürecindeki Taleplerim':'Onayımı Bekleyen Talepler';
+  const maxH=Math.max(1,...d.top_devices.map(x=>x.hours));
+  let warn='';
+  if(!S.me.isg_valid) warn='<div class="banner banner-warn">'+ic('hard')+'<div><b>İSG eğitiminiz geçerli değil.</b> İSG gerektiren cihazlar için randevu alamazsınız. İş Sağlığı ve Güvenliği birimiyle iletişime geçin.</div></div>';
+  if(role==='admin' && S.me.default_secret) warn+=secretBanner();
+  $('#content').innerHTML = warn+
+  '<div class="grid g4" style="margin-bottom:16px">'+
+    stat('micro','ic-navy',d.total_devices,'Toplam Cihaz',d.active_devices+' cihaz kullanıma açık')+
+    stat('calendar','ic-teal',d.active_reservations,'Aktif Randevular','Bugün ve sonrası onaylı')+
+    stat('clock','ic-amber',d.pending,pendLabel,role==='student'?'Danışman / lab. onayında':'Karar vermeniz gereken')+
+    stat('activity','ic-blue',d.hours_month+' sa','Bu Ay Kullanım',d.completed_total+' tamamlanan kullanım (toplam)')+
+  '</div>'+
+  '<div class="grid g2">'+
+    '<div class="card"><div class="card-h">'+ic('calendar')+'<h3>Yaklaşan Randevular</h3><div class="r"><button class="btn btn-ghost btn-sm" data-goto="reservations">Tümü</button></div></div><div class="card-b">'+
+      (d.upcoming.length? d.upcoming.map(u=>'<div class="list-item"><span class="dot" style="background:'+(u.status==='approved'?'var(--teal)':'#e0a106')+'"></span><div style="flex:1;min-width:0"><b>'+esc(u.device_name)+'</b><div class="small muted">'+fmtDate(u.date)+' '+esc(u.start_time)+'–'+esc(u.end_time)+(role!=='student'?' · '+esc(u.user_name):'')+'</div></div>'+resBadge(u.status)+'</div>').join('') : empty('Yaklaşan randevu yok.','calendar'))+
+    '</div></div>'+
+    '<div class="card"><div class="card-h">'+ic('activity')+'<h3>Kullanım İstatistikleri</h3><span class="muted small r">Tamamlanan kullanım saatleri</span></div><div class="card-b">'+
+      (d.top_devices.length? d.top_devices.map(t=>'<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>'+esc(t.name)+'</span><b>'+(+t.hours).toLocaleString('tr-TR')+' sa · '+t.cnt+' kullanım</b></div><div class="bar"><i style="width:'+Math.round(t.hours/maxH*100)+'%"></i></div></div>').join('') : empty('Henüz tamamlanmış kullanım yok.','activity'))+
+    '</div></div>'+
+  '</div>'+
+  '<div class="card" style="margin-top:16px"><div class="card-h">'+ic('list')+'<h3>Son Hareketler</h3><span class="muted small r">'+(role==='admin'?'Sistem geneli':'Sizin işlemleriniz')+'</span></div><div class="card-b">'+
+    (d.recent.length? d.recent.map(l=>'<div class="list-item"><span class="badge b-navy">'+esc(ACTION_LABELS[l.action]||l.action)+'</span><div style="flex:1;min-width:0" class="small">'+esc(l.detail)+(role==='admin'?' <span class="muted">· '+esc(l.user_email)+'</span>':'')+'</div><span class="small muted" style="white-space:nowrap">'+fmtDT(l.created_at)+'</span></div>').join('') : empty('Kayıt yok.'))+
+  '</div></div>';
+  $$('[data-goto]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.goto)));
+}
+function stat(icon,cls,v,l,sub){ return '<div class="card stat"><div class="ic '+cls+'">'+ic(icon)+'</div><div><div class="v">'+esc(v)+'</div><div class="l">'+esc(l)+'</div><div class="small muted">'+esc(sub)+'</div></div></div>'; }
+function secretBanner(){ return '<div class="banner banner-warn">'+ic('alert')+'<div><b>Güvenlik uyarısı:</b> Varsayılan oturum anahtarı kullanılıyor. Sunucuyu başlatmadan önce <code>LABNET_SECRET</code> ortam değişkenine uzun ve rastgele bir değer verin.</div></div>'; }
+
+/* =========================================================
+   2. CIHAZ KATALOGU
+   ========================================================= */
+async function loadBase(){
+  const [devices, labs] = await Promise.all([api('/api/devices'), api('/api/labs')]);
+  S.devices=devices; S.labs=labs;
+}
+async function renderCatalog(){
+  await loadBase();
+  const c=S.catalog;
+  $('#content').innerHTML=
+    '<div class="lab-strip" id="labStrip"></div>'+
+    '<div class="toolbar">'+
+      '<div class="search">'+ic('search')+'<input class="inp" id="cq" placeholder="Cihaz, marka/model veya seri no ara…" value="'+esc(c.q)+'"></div>'+
+      '<select class="inp" id="clab"><option value="">Tüm laboratuvarlar</option>'+S.labs.filter(l=>l.is_active||S.me.role==='admin').map(l=>'<option value="'+l.id+'"'+(String(l.id)===c.lab?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select>'+
+      '<select class="inp" id="cst"><option value="">Tüm durumlar</option><option value="active"'+(c.status==='active'?' selected':'')+'>Aktif</option><option value="maintenance"'+(c.status==='maintenance'?' selected':'')+'>Bakımda</option><option value="broken"'+(c.status==='broken'?' selected':'')+'>Arızalı</option><option value="mine"'+(c.status==='mine'?' selected':'')+'>Yalnızca yetkili olduklarım</option></select>'+
+    '</div><div id="devList"></div>';
+  const draw=()=>{
+    $('#labStrip').innerHTML=S.labs.filter(l=>l.is_active).map(l=>'<div class="card lab-chip'+(String(l.id)===c.lab?' sel':'')+'" data-lab="'+l.id+'"><div class="dev-ic" style="width:36px;height:36px">'+ic('building')+'</div><div><b>'+esc(l.name)+'</b><div class="small muted">'+esc(l.code)+' · '+esc(l.building_room||'-')+'</div><div class="small muted">Sorumlu: '+esc(l.manager_name||'-')+' · '+l.device_count+' cihaz</div></div></div>').join('');
+    $$('#labStrip [data-lab]').forEach(el=>el.addEventListener('click',()=>{ c.lab = c.lab===el.dataset.lab?'':el.dataset.lab; $('#clab').value=c.lab; draw(); }));
+    const q=c.q.toLocaleLowerCase('tr');
+    const list=S.devices.filter(d=>(!c.lab||String(d.lab_id)===c.lab) && (!c.status || (c.status==='mine'? d.authorized : d.status===c.status)) &&
+      (!q || [d.name,d.brand_model,d.serial_no,d.lab_name].join(' ').toLocaleLowerCase('tr').includes(q)));
+    $('#devList').innerHTML = list.length? '<div class="dev-grid">'+list.map(devCard).join('')+'</div>' : empty('Aramanıza uygun cihaz bulunamadı.','search');
+    $$('#devList [data-book]').forEach(b=>b.addEventListener('click',()=>openBooking(+b.dataset.book)));
+  };
+  $('#cq').addEventListener('input',e=>{ c.q=e.target.value; draw(); });
+  $('#clab').addEventListener('change',e=>{ c.lab=e.target.value; draw(); });
+  $('#cst').addEventListener('change',e=>{ c.status=e.target.value; draw(); });
+  draw();
+}
+function devCard(d){
+  let auth;
+  if(d.authorized) auth='<span class="badge b-ok">'+ic('check2')+'Yetkili</span>';
+  else auth=d.auth_problems.map(p=>'<span class="badge b-bad">'+ic(p.startsWith('İSG')?'hard':'award')+esc(p)+'</span>').join(' ');
+  const tags=[];
+  if(d.requires_isg) tags.push('<span class="tag">'+ic('hard')+'İSG gerekli</span>');
+  if(d.requires_certificate) tags.push('<span class="tag">'+ic('award')+'Sertifika gerekli'+(d.cert_expires_at?' · '+fmtDate(d.cert_expires_at)+"'e kadar":'')+'</span>');
+  tags.push('<span class="tag">'+ic('clock')+'Günlük en çok '+d.max_daily_hours+' sa</span>');
+  if(d.serial_no) tags.push('<span class="tag">SN: '+esc(d.serial_no)+'</span>');
+  const canBook=d.status==='active';
+  return '<div class="card dev"><div class="dev-top"><div class="dev-ic">'+ic(deviceIcon(d.name))+'</div><div style="flex:1;min-width:0"><h4>'+esc(d.name)+'</h4><div class="meta">'+esc(d.brand_model||'')+'</div><div class="meta">'+ic('building')+' '+esc(d.lab_name)+' · '+esc(d.building_room||'')+'</div></div><div>'+devBadge(d.status)+'</div></div>'+
+    '<div class="dev-tags">'+tags.join('')+'</div>'+
+    '<div class="dev-notes">'+esc(d.usage_notes||'')+'</div>'+
+    '<div class="dev-foot">'+auth+'<button class="btn btn-primary btn-sm" data-book="'+d.id+'"'+(canBook?'':' disabled title="Cihaz şu anda kullanıma kapalı"')+'>'+ic('calendar')+'Randevu Al</button></div></div>';
+}
+
+/* ----- Randevu Al modali ----- */
+async function openBooking(deviceId){
+  const d=S.devices.find(x=>x.id===deviceId);
+  if(!d) return;
+  if(S.me.role==='student' && !S.advisors.length){ try{ S.advisors=await api('/api/advisors'); }catch(e){ toast(e.message,'err'); return; } }
+  const tomorrow=iso(addDays(new Date(),1));
+  const warn = d.authorized? '' : '<div class="banner banner-warn">'+ic('alert')+'<div>Bu cihaz için yetkiniz eksik görünüyor: <b>'+esc(d.auth_problems.join(', '))+'</b>. Talebiniz sistem tarafından reddedilecektir.</div></div>';
+  const advSel = S.me.role==='student'
+    ? '<label class="f"><span>Akademik danışman *</span><select class="inp" id="bkAdv"><option value="">Seçiniz…</option>'+S.advisors.map(a=>'<option value="'+a.id+'">'+esc(a.full_name)+' — '+esc(a.department||'')+'</option>').join('')+'</select></label>'
+    : '<div class="banner banner-info">'+ic('info')+'<div>Personel talepleri danışman aşamasını atlar ve doğrudan laboratuvar sorumlusu onayına gider.</div></div>';
+  const m=openModal('Randevu Al — '+d.name,
+    warn+
+    '<div class="info-box"><div class="kv"><span>Laboratuvar</span><div>'+esc(d.lab_name)+' ('+esc(d.building_room||'-')+')</div>'+
+    '<span>Gereksinimler</span><div>'+(d.requires_isg?'İSG eğitimi · ':'')+(d.requires_certificate?'Kullanım sertifikası · ':'')+'Günlük en çok '+d.max_daily_hours+' saat</div>'+
+    '<span>Onay akışı</span><div>'+(S.me.role==='student'?'1. Danışman → 2. Lab. Sorumlusu ('+esc(d.manager_name||'-')+')':'Lab. Sorumlusu ('+esc(d.manager_name||'-')+')')+'</div></div></div>'+
+    '<div class="row"><label class="f"><span>Tarih *</span><input class="inp" type="date" id="bkDate" min="'+iso(new Date())+'" value="'+tomorrow+'"></label>'+
+    '<label class="f"><span>Başlangıç *</span><input class="inp" type="time" id="bkStart" value="09:00" step="900"></label>'+
+    '<label class="f"><span>Bitiş *</span><input class="inp" type="time" id="bkEnd" value="11:00" step="900"></label></div>'+
+    '<div class="small muted" id="bkSlots" style="margin:-4px 0 12px"></div>'+
+    advSel+
+    '<label class="f"><span>Proje başlığı *</span><input class="inp" id="bkTitle" maxlength="200" placeholder="Tez / proje adı"></label>'+
+    '<label class="f"><span>Kullanım amacı</span><textarea class="inp" id="bkPurpose" maxlength="1500" placeholder="Ölçüm türü, numune sayısı, özel gereksinimler…"></textarea></label>',
+    '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="bkSave">'+ic('send')+'Talep Gönder</button>');
+  $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
+  const loadSlots=async()=>{
+    const dt=$('#bkDate').value; if(!dt){ $('#bkSlots').innerHTML=''; return; }
+    try{
+      const c=await api('/api/calendar?device_id='+d.id+'&start='+dt+'&days=1');
+      const busy=c.items.filter(i=>i.status!=='completed');
+      $('#bkSlots').innerHTML = busy.length ? 'Bu tarihte dolu saatler:<div class="slots">'+busy.map(i=>'<span class="badge '+(i.status==='approved'?'b-ok':'b-warn')+'">'+esc(i.start_time)+'–'+esc(i.end_time)+'</span>').join('')+'</div>' : ic('check2')+' Bu tarihte cihaz için kayıtlı randevu yok.';
+    }catch(e){ $('#bkSlots').textContent=''; }
+  };
+  $('#bkDate').addEventListener('change', loadSlots); loadSlots();
+  $('#bkSave').addEventListener('click', e=>act(e.currentTarget, async ()=>{
+    const body={device_id:d.id, date:$('#bkDate').value, start_time:$('#bkStart').value, end_time:$('#bkEnd').value,
+      project_title:$('#bkTitle').value, purpose:$('#bkPurpose').value};
+    if($('#bkAdv')) body.advisor_id=$('#bkAdv').value;
+    const r=await api('/api/reservations',{method:'POST', body});
+    closeModal(); toast('Randevu talebiniz oluşturuldu (#'+r.id+'). Durum: '+r.status_label+'.');
+    await refreshCounts();
+    if(S.page==='reservations') go('reservations');
+  }));
+}
+
+/* =========================================================
+   3. RANDEVULAR / ONAY YONETIMI
+   ========================================================= */
+async function renderReservations(){
+  const role=S.me.role;
+  const tabs=[['mine',role==='student'?'Randevularım':'Kendi Randevularım','calendar']];
+  if(role!=='student'){ tabs.unshift(['approvals','Onay Bekleyenler','inbox']); tabs.push(['managed', role==='advisor'?'Danışmanlık Talepleri':'Tüm Talepler','list']); }
+  tabs.push(['calendar','Doluluk Takvimi','clock']);
+  if(!tabs.find(t=>t[0]===S.resTab)) S.resTab=tabs[0][0];
+  $('#content').innerHTML='<div class="tabs" id="resTabs">'+tabs.map(t=>'<button data-t="'+t[0]+'" class="'+(S.resTab===t[0]?'active':'')+'">'+ic(t[2])+esc(t[1])+(t[0]==='approvals'&&S.counts.pending?'<span class="count">'+S.counts.pending+'</span>':'')+'</button>').join('')+'</div><div id="resBody">'+loading()+'</div>';
+  $$('#resTabs button').forEach(b=>b.addEventListener('click',()=>{ S.resTab=b.dataset.t; renderReservations(); }));
+  if(S.resTab==='calendar') return renderCalendar();
+  const list=await api('/api/reservations?scope='+S.resTab);
+  const box=$('#resBody');
+  if(!list.length){ box.innerHTML = empty(S.resTab==='approvals'?'Onayınızı bekleyen talep yok.':'Kayıtlı randevu yok.', S.resTab==='approvals'?'check2':'calendar'); if(S.resTab==='mine') box.insertAdjacentHTML('beforeend','<div style="text-align:center"><button class="btn btn-primary" data-goto="catalog">'+ic('plus')+'Cihaz Kataloğundan Randevu Al</button></div>'); $$('[data-goto]',box).forEach(b=>b.addEventListener('click',()=>go(b.dataset.goto))); return; }
+  let filterHtml='';
+  if(S.resTab!=='approvals'){
+    filterHtml='<div class="toolbar"><select class="inp" id="rfSt" style="max-width:280px"><option value="">Tüm durumlar</option>'+Object.entries(RES_LABEL).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')+'</select><span class="muted small">'+list.length+' kayıt</span></div>';
+  }
+  box.innerHTML=filterHtml+'<div id="resList"></div>';
+  const draw=()=>{
+    const f=$('#rfSt')?$('#rfSt').value:'';
+    const l=list.filter(r=>!f||r.status===f);
+    $('#resList').innerHTML = l.length? l.map(resCard).join('') : empty('Bu durumda kayıt yok.');
+    bindResActions();
+  };
+  if($('#rfSt')) $('#rfSt').addEventListener('change',draw);
+  draw();
+}
+function steps(r){
+  const st=r.status;
+  const s1 = {cls:'done', icon:'check'};
+  let s2, s3, s4;
+  const advSkipped = r.advisor_id===r.user_id;
+  if(st==='pending_advisor'){ s2={cls:'now',n:'2'}; s3={cls:'',n:'3'}; s4={cls:'',n:'4'}; }
+  else if(st==='rejected' && !r.lab_note && !advSkipped){ s2={cls:'fail',icon:'x'}; s3={cls:'',n:'3'}; s4={cls:'',n:'4'}; }
+  else if(st==='pending_lab'){ s2={cls:'done',icon:'check'}; s3={cls:'now',n:'3'}; s4={cls:'',n:'4'}; }
+  else if(st==='rejected'){ s2={cls:'done',icon:'check'}; s3={cls:'fail',icon:'x'}; s4={cls:'',n:'4'}; }
+  else if(st==='approved'){ s2={cls:'done',icon:'check'}; s3={cls:'done',icon:'check'}; s4={cls:'now',n:'4'}; }
+  else if(st==='completed'){ s2={cls:'done',icon:'check'}; s3={cls:'done',icon:'check'}; s4={cls:'done',icon:'check'}; }
+  else { s2={cls:'',n:'2'}; s3={cls:'',n:'3'}; s4={cls:'',n:'4'}; }
+  const one=(o,t,sub)=>'<div class="step '+o.cls+'"><div class="c">'+(o.icon?ic(o.icon):o.n)+'</div><div class="s"><b>'+t+'</b>'+sub+'</div></div>';
+  const line=(o)=>'<div class="step-line '+(o.cls==='done'?'done':'')+'"></div>';
+  return '<div class="steps">'+one(s1,'Talep','Oluşturuldu')+line(s2)+
+    one(s2,'1. Danışman', advSkipped?'Gerekmiyor':esc(r.advisor_name||'-'))+line(s3)+
+    one(s3,'2. Lab. Sorumlusu',esc(r.manager_name||'-'))+line(s4)+
+    one(s4, st==='completed'?'Tamamlandı':'Kullanım', st==='completed'?(r.actual_hours+' saat'):(st==='cancelled'?'İptal edildi':'Rapor bekleniyor'))+'</div>';
+}
+function resCard(r){
+  const notes=[];
+  if(r.advisor_note) notes.push('<div class="note"><b>Danışman notu:</b> '+esc(r.advisor_note)+'</div>');
+  if(r.lab_note) notes.push('<div class="note"><b>Lab. sorumlusu notu:</b> '+esc(r.lab_note)+'</div>');
+  if(r.usage_report) notes.push('<div class="note"><b>Kullanım raporu ('+esc(r.actual_hours)+' sa):</b> '+esc(r.usage_report)+'</div>');
+  let actions='';
+  if(r.can_advisor_decide || r.can_lab_decide){
+    const stage=r.can_advisor_decide?'advisor':'lab';
+    actions='<div class="res-actions"><textarea class="inp" data-note="'+r.id+'" placeholder="Gerekçe / not (reddetmede zorunlu)" maxlength="1000"></textarea>'+
+      '<button class="btn btn-primary" data-decide="approve" data-stage="'+stage+'" data-id="'+r.id+'">'+ic('check')+'Onayla</button>'+
+      '<button class="btn btn-danger" data-decide="reject" data-stage="'+stage+'" data-id="'+r.id+'">'+ic('x')+'Reddet</button></div>';
+  } else if(r.can_cancel || r.can_complete){
+    actions='<div class="res-actions">'+(r.can_complete?'<button class="btn btn-navy btn-sm" data-complete="'+r.id+'">'+ic('file')+'Tamamla ve Rapor Gir</button>':'')+
+      (r.can_cancel?'<button class="btn btn-danger btn-sm" data-cancel="'+r.id+'">'+ic('x')+'Talebi İptal Et</button>':'')+'</div>';
+  }
+  const showUser = r.user_id!==S.me.id;
+  return '<div class="card res"><div class="res-head"><div style="flex:1;min-width:220px"><h4>'+esc(r.device_name)+' <span class="muted small" style="font-weight:500">#'+r.id+'</span></h4><div class="small muted">'+esc(r.lab_name)+'</div></div>'+
+    '<div class="when">'+ic('calendar')+fmtDate(r.date)+' · '+DAYS[parseISO(r.date).getDay()]+' '+ic('clock')+esc(r.start_time)+'–'+esc(r.end_time)+'</div>'+resBadge(r.status)+'</div>'+
+    '<div class="res-body">'+(showUser?'<div><span>Talep eden:</span> <b>'+esc(r.user_name)+'</b></div>':'')+'<div><span>Proje:</span> '+esc(r.project_title)+'</div>'+(r.purpose?'<div><span>Amaç:</span> '+esc(r.purpose)+'</div>':'')+'<div><span>Oluşturulma:</span> '+fmtDT(r.created_at)+'</div></div>'+
+    (r.status!=='cancelled'?steps(r):'')+
+    (notes.length?'<div class="res-notes">'+notes.join('')+'</div>':'')+actions+'</div>';
+}
+function bindResActions(){
+  $$('[data-decide]').forEach(b=>b.addEventListener('click',()=>act(b, async ()=>{
+    const id=b.dataset.id, note=$('[data-note="'+id+'"]').value.trim();
+    if(b.dataset.decide==='reject' && !note){ $('[data-note="'+id+'"]').focus(); throw new Error('Reddetme işleminde gerekçe notu zorunludur.'); }
+    await api('/api/reservations/'+id+'/'+b.dataset.stage,{method:'POST', body:{decision:b.dataset.decide, note}});
+    toast(b.dataset.decide==='approve'? (b.dataset.stage==='advisor'?'Talep onaylandı ve laboratuvar sorumlusuna iletildi.':'Randevu onaylandı.') : 'Talep reddedildi.');
+    await refreshCounts(); renderReservations();
+  })));
+  $$('[data-cancel]').forEach(b=>b.addEventListener('click',()=>{
+    if(!confirm('Bu randevu talebini iptal etmek istediğinize emin misiniz?')) return;
+    act(b, async ()=>{ await api('/api/reservations/'+b.dataset.cancel+'/cancel',{method:'POST', body:{}}); toast('Randevu iptal edildi.'); await refreshCounts(); renderReservations(); });
+  }));
+  $$('[data-complete]').forEach(b=>b.addEventListener('click',()=>openComplete(+b.dataset.complete)));
+}
+function openComplete(id){
+  const m=openModal('Kullanımı Tamamla — #'+id,
+    '<div class="row"><label class="f"><span>Gerçekleşen kullanım süresi (saat) *</span><input class="inp" type="number" id="cpH" min="0.25" max="24" step="0.25" value="1"></label></div>'+
+    '<label class="f"><span>Kullanım raporu ve cihaz durum notu *</span><textarea class="inp" id="cpR" maxlength="2000" placeholder="Yapılan işlem, numune sayısı, cihazın teslim durumu…"></textarea></label>'+
+    '<label class="check"><input type="checkbox" id="cpP"> Cihazda arıza / sorun gözlemledim (laboratuvar sorumlusu bilgilendirilir)</label>',
+    '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="cpSave">'+ic('check')+'Tamamla</button>');
+  $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
+  $('#cpSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    await api('/api/reservations/'+id+'/complete',{method:'POST', body:{actual_hours:$('#cpH').value, usage_report:$('#cpR').value, device_problem:$('#cpP').checked}});
+    closeModal(); toast('Kullanım raporu kaydedildi, randevu tamamlandı.'); renderReservations();
+  }));
+}
+
+/* ----- Doluluk takvimi ----- */
+async function renderCalendar(){
+  if(!S.devices.length) await loadBase();
+  const c=S.cal;
+  if(!c.start){ const t=new Date(); const dow=(t.getDay()+6)%7; c.start=iso(addDays(t,-dow)); }
+  if(!c.device && S.devices.length) c.device=String((S.devices.find(d=>d.status==='active')||S.devices[0]).id);
+  const box=$('#resBody');
+  box.innerHTML='<div class="card"><div class="card-h" style="flex-wrap:wrap">'+
+    '<select class="inp" id="calDev" style="max-width:340px">'+S.devices.map(d=>'<option value="'+d.id+'"'+(String(d.id)===c.device?' selected':'')+'>'+esc(d.name)+' — '+esc(d.lab_code)+'</option>').join('')+'</select>'+
+    '<div class="r" style="flex-wrap:wrap">'+
+      '<div style="display:flex;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden"><button class="btn btn-sm '+(c.mode==='day'?'btn-navy':'')+'" style="border-radius:0" data-mode="day">Günlük</button><button class="btn btn-sm '+(c.mode==='week'?'btn-navy':'')+'" style="border-radius:0" data-mode="week">Haftalık</button></div>'+
+      '<button class="btn btn-ghost btn-sm" id="calPrev" aria-label="Önceki">'+ic('chev_l')+'</button><button class="btn btn-ghost btn-sm" id="calToday">Bugün</button><button class="btn btn-ghost btn-sm" id="calNext" aria-label="Sonraki">'+ic('chev_r')+'</button>'+
+      '<input class="inp" type="date" id="calDate" style="width:auto" value="'+c.start+'">'+
+      '<button class="btn btn-primary btn-sm" id="calBook">'+ic('plus')+'Randevu Al</button>'+
+    '</div></div><div class="card-b"><div id="calGrid">'+loading()+'</div>'+
+    '<div class="legend"><span><i style="background:#d9efec;border-left:3px solid var(--teal)"></i>Onaylı</span><span><i style="background:#fff1cf;border-left:3px solid #e0a106"></i>Onay bekliyor</span><span><i style="background:#e8ecf1;border-left:3px solid #8a9bb0"></i>Tamamlandı</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--navy)"></i>Sizin randevunuz</span></div></div></div>';
+  const days=c.mode==='week'?7:1;
+  $('#calDev').addEventListener('change',e=>{ c.device=e.target.value; renderCalendar(); });
+  $$('[data-mode]').forEach(b=>b.addEventListener('click',()=>{ c.mode=b.dataset.mode; if(c.mode==='week'){ const t=parseISO(c.start); c.start=iso(addDays(t,-((t.getDay()+6)%7))); } renderCalendar(); }));
+  $('#calPrev').addEventListener('click',()=>{ c.start=iso(addDays(parseISO(c.start),-days)); renderCalendar(); });
+  $('#calNext').addEventListener('click',()=>{ c.start=iso(addDays(parseISO(c.start),days)); renderCalendar(); });
+  $('#calToday').addEventListener('click',()=>{ const t=new Date(); c.start = c.mode==='week'? iso(addDays(t,-((t.getDay()+6)%7))) : iso(t); renderCalendar(); });
+  $('#calDate').addEventListener('change',e=>{ if(!e.target.value) return; const t=parseISO(e.target.value); c.start = c.mode==='week'? iso(addDays(t,-((t.getDay()+6)%7))) : e.target.value; renderCalendar(); });
+  $('#calBook').addEventListener('click',()=>openBooking(+c.device));
+  const data=await api('/api/calendar?device_id='+c.device+'&start='+c.start+'&days='+days);
+  const H0=7, H1=22, PX=40/60; // 40px / saat
+  const height=(H1-H0)*40;
+  const today=iso(new Date());
+  let html='<div class="cal-wrap"><div class="cal" style="grid-template-columns:56px repeat('+days+',minmax('+(days===1?'300px':'90px')+',1fr));min-width:'+(days===1?'360px':'720px')+'">';
+  html+='<div class="cal-hd"></div>';
+  for(let i=0;i<days;i++){ const dt=addDays(parseISO(c.start),i), s=iso(dt); html+='<div class="cal-hd'+(s===today?' today':'')+'">'+(days===1?DAYS[dt.getDay()]:DAYS_S[dt.getDay()])+'<small>'+fmtDate(s)+'</small></div>'; }
+  html+='<div class="cal-times" style="height:'+height+'px">';
+  for(let h=H0;h<=H1;h++){ html+='<div style="top:'+((h-H0)*40)+'px">'+String(h).padStart(2,'0')+':00</div>'; }
+  html+='</div>';
+  for(let i=0;i<days;i++){
+    const s=iso(addDays(parseISO(c.start),i));
+    html+='<div class="cal-col'+(s===today?' today':'')+'" style="height:'+height+'px">';
+    data.items.filter(x=>x.date===s).forEach(ev=>{
+      const a=Math.max(toMin(ev.start_time),H0*60), b=Math.min(toMin(ev.end_time),H1*60);
+      if(b<=a) return;
+      const top=(a-H0*60)*PX, hgt=Math.max((b-a)*PX-2,18);
+      const who= ev.user_name? esc(ev.user_name) : 'Dolu';
+      html+='<div class="ev ev-'+ev.status+(ev.mine?' mine':'')+'" style="top:'+top+'px;height:'+hgt+'px" title="'+esc(ev.start_time+'–'+ev.end_time+' · '+ev.status_label+(ev.project_title?' · '+ev.project_title:''))+'"><b>'+esc(ev.start_time)+'–'+esc(ev.end_time)+'</b>'+who+(ev.project_title&&hgt>40?'<div>'+esc(ev.project_title)+'</div>':'')+'</div>';
+    });
+    html+='</div>';
+  }
+  html+='</div></div>';
+  const outside=data.items.filter(x=>toMin(x.end_time)<=H0*60||toMin(x.start_time)>=H1*60);
+  if(outside.length) html+='<div class="small muted" style="margin-top:8px">07:00–22:00 dışındaki randevular: '+outside.map(x=>fmtDate(x.date)+' '+esc(x.start_time)+'–'+esc(x.end_time)).join(', ')+'</div>';
+  $('#calGrid').innerHTML=html;
+}
+
+/* =========================================================
+   4. LAB. SORUMLUSU ISLEMLERI
+   ========================================================= */
+async function renderLabOps(){
+  await loadBase();
+  const tabs=[['devices','Cihaz Durumları','micro'],['newdev','Yeni Cihaz Ekle','plus'],['certs','Kullanım Sertifikaları','award']];
+  $('#content').innerHTML='<div class="tabs" id="labTabs">'+tabs.map(t=>'<button data-t="'+t[0]+'" class="'+(S.labTab===t[0]?'active':'')+'">'+ic(t[2])+t[1]+'</button>').join('')+'</div><div id="labBody">'+loading()+'</div>';
+  $$('#labTabs button').forEach(b=>b.addEventListener('click',()=>{ S.labTab=b.dataset.t; renderLabOps(); }));
+  const managed=S.devices.filter(d=>d.can_manage);
+  const myLabs=S.labs.filter(l=>S.me.role==='admin'||l.manager_id===S.me.id);
+  const box=$('#labBody');
+  if(S.labTab==='devices'){
+    if(!managed.length){ box.innerHTML=empty('Sorumlusu olduğunuz laboratuvarda cihaz yok.','micro'); return; }
+    box.innerHTML='<div class="card"><div class="card-h">'+ic('micro')+'<h3>Sorumlu Olduğunuz Cihazlar</h3><span class="r muted small">Durum değişikliği anında kaydedilir</span></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Cihaz</th><th>Laboratuvar</th><th>Gereksinim</th><th>Günlük Azami</th><th>Durum</th><th></th></tr></thead><tbody>'+
+      managed.map(d=>'<tr><td><b>'+esc(d.name)+'</b><div class="small muted">'+esc(d.brand_model||'')+(d.serial_no?' · SN '+esc(d.serial_no):'')+'</div></td><td>'+esc(d.lab_name)+'</td><td>'+(d.requires_isg?'<span class="tag">İSG</span> ':'')+(d.requires_certificate?'<span class="tag">Sertifika</span>':'')+(!d.requires_isg&&!d.requires_certificate?'<span class="muted small">Yok</span>':'')+'</td><td>'+d.max_daily_hours+' sa</td>'+
+        '<td><select class="inp" data-status="'+d.id+'" style="min-width:130px"><option value="active"'+(d.status==='active'?' selected':'')+'>Aktif</option><option value="maintenance"'+(d.status==='maintenance'?' selected':'')+'>Bakımda</option><option value="broken"'+(d.status==='broken'?' selected':'')+'>Arızalı</option></select></td>'+
+        '<td><button class="btn btn-ghost btn-sm" data-edit="'+d.id+'">'+ic('edit')+'Düzenle</button></td></tr>').join('')+'</tbody></table></div></div>';
+    $$('[data-status]').forEach(s=>s.addEventListener('change',()=>act(s, async ()=>{
+      await api('/api/devices/'+s.dataset.status,{method:'PATCH', body:{status:s.value}});
+      toast('Cihaz durumu "'+s.options[s.selectedIndex].text+'" olarak güncellendi.');
+      const d=S.devices.find(x=>x.id===+s.dataset.status); if(d) d.status=s.value;
+    })));
+    $$('[data-edit]').forEach(b=>b.addEventListener('click',()=>openDeviceEdit(S.devices.find(x=>x.id===+b.dataset.edit))));
+  } else if(S.labTab==='newdev'){
+    if(!myLabs.length){ box.innerHTML=empty('Sorumlusu olduğunuz laboratuvar yok.','building'); return; }
+    box.innerHTML='<div class="card" style="max-width:760px"><div class="card-h">'+ic('plus')+'<h3>Yeni Cihaz Ekle</h3></div><div class="card-b">'+deviceForm(null,myLabs)+'<button class="btn btn-primary" id="ndSave">'+ic('plus')+'Cihazı Kaydet</button></div></div>';
+    $('#ndSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+      await api('/api/devices',{method:'POST', body:readDeviceForm(true)});
+      toast('Cihaz eklendi.'); S.labTab='devices'; renderLabOps();
+    }));
+  } else {
+    const users=await api('/api/users');
+    const certs=await api('/api/certificates');
+    const mineCerts=certs.filter(c=>S.me.role==='admin'||myLabs.some(l=>l.id===c.lab_id));
+    box.innerHTML='<div class="grid cert-grid" id="certGrid">'+
+      '<div class="card"><div class="card-h">'+ic('award')+'<h3>Sertifika Tanımla</h3></div><div class="card-b">'+
+        '<label class="f"><span>Kullanıcı *</span><select class="inp" id="ctUser"><option value="">Seçiniz…</option>'+users.map(u=>'<option value="'+u.id+'">'+esc(u.full_name)+' ('+esc(u.role_label)+')</option>').join('')+'</select></label>'+
+        '<label class="f"><span>Cihaz *</span><select class="inp" id="ctDev"><option value="">Seçiniz…</option>'+managed.map(d=>'<option value="'+d.id+'">'+esc(d.name)+(d.requires_certificate?' ★':'')+'</option>').join('')+'</select></label>'+
+        '<label class="f"><span>Geçerlilik bitişi</span><input class="inp" type="date" id="ctExp" value="'+iso(addDays(new Date(),365))+'"></label>'+
+        '<div class="small muted" style="margin:-6px 0 12px">Boş bırakılırsa süresiz olur. ★ sertifika gerektiren cihaz.</div>'+
+        '<button class="btn btn-primary btn-block" id="ctSave">'+ic('award')+'Sertifikayı Tanımla</button></div></div>'+
+      '<div class="card"><div class="card-h">'+ic('list')+'<h3>Tanımlı Sertifikalar</h3><div class="r"><input class="inp" id="ctQ" placeholder="Ara…" style="width:180px"></div></div><div class="tbl-wrap" id="ctList"></div></div></div>';
+    const draw=()=>{
+      const q=$('#ctQ').value.toLocaleLowerCase('tr');
+      const l=mineCerts.filter(c=>!q||(c.user_name+' '+c.device_name+' '+c.user_email).toLocaleLowerCase('tr').includes(q));
+      $('#ctList').innerHTML= l.length? '<table class="t"><thead><tr><th>Kullanıcı</th><th>Cihaz</th><th>Veriliş</th><th>Bitiş</th><th>Durum</th><th></th></tr></thead><tbody>'+
+        l.map(c=>'<tr><td><b>'+esc(c.user_name)+'</b><div class="small muted">'+esc(c.user_email)+'</div></td><td>'+esc(c.device_name)+'<div class="small muted">'+esc(c.lab_name)+'</div></td><td>'+fmtDate(c.granted_at)+'<div class="small muted">'+esc(c.granted_by_name||'')+'</div></td><td>'+(c.expires_at?fmtDate(c.expires_at):'Süresiz')+'</td><td>'+(c.valid?'<span class="badge b-ok">Geçerli</span>':'<span class="badge b-bad">Süresi doldu</span>')+'</td><td><button class="btn btn-danger btn-sm" data-revoke="'+c.id+'">'+ic('trash')+'İptal</button></td></tr>').join('')+'</tbody></table>' : empty('Sertifika kaydı yok.','award');
+      $$('[data-revoke]').forEach(b=>b.addEventListener('click',()=>{
+        if(!confirm('Bu kullanım sertifikasını iptal etmek istediğinize emin misiniz?')) return;
+        act(b, async ()=>{ await api('/api/certificates/'+b.dataset.revoke,{method:'DELETE'}); toast('Sertifika iptal edildi.'); renderLabOps(); });
+      }));
+    };
+    $('#ctQ').addEventListener('input',draw); draw();
+    $('#ctSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+      if(!$('#ctUser').value || !$('#ctDev').value) throw new Error('Kullanıcı ve cihaz seçiniz.');
+      await api('/api/certificates',{method:'POST', body:{user_id:$('#ctUser').value, device_id:$('#ctDev').value, expires_at:$('#ctExp').value}});
+      toast('Kullanım sertifikası tanımlandı.'); renderLabOps();
+    }));
+  }
+}
+function deviceForm(d, labs){
+  d=d||{status:'active',max_daily_hours:8,requires_isg:1,requires_certificate:0};
+  return (labs?'<label class="f"><span>Laboratuvar *</span><select class="inp" id="dfLab">'+labs.map(l=>'<option value="'+l.id+'">'+esc(l.name)+'</option>').join('')+'</select></label>':'')+
+    '<div class="row"><label class="f"><span>Cihaz adı *</span><input class="inp" id="dfName" maxlength="150" value="'+esc(d.name||'')+'"></label>'+
+    '<label class="f"><span>Marka / Model</span><input class="inp" id="dfModel" maxlength="150" value="'+esc(d.brand_model||'')+'"></label></div>'+
+    '<div class="row"><label class="f"><span>Seri No</span><input class="inp" id="dfSerial" maxlength="80" value="'+esc(d.serial_no||'')+'"></label>'+
+    '<label class="f"><span>Durum</span><select class="inp" id="dfStatus"><option value="active"'+(d.status==='active'?' selected':'')+'>Aktif</option><option value="maintenance"'+(d.status==='maintenance'?' selected':'')+'>Bakımda</option><option value="broken"'+(d.status==='broken'?' selected':'')+'>Arızalı</option></select></label>'+
+    '<label class="f"><span>Günlük azami saat</span><input class="inp" type="number" id="dfMax" min="1" max="24" value="'+esc(d.max_daily_hours)+'"></label></div>'+
+    '<label class="check"><input type="checkbox" id="dfIsg"'+(d.requires_isg?' checked':'')+'> İSG eğitimi gerektirir</label>'+
+    '<label class="check"><input type="checkbox" id="dfCert"'+(d.requires_certificate?' checked':'')+'> Kullanım sertifikası gerektirir</label>'+
+    '<label class="f"><span>Kullanım notları</span><textarea class="inp" id="dfNotes" maxlength="1500">'+esc(d.usage_notes||'')+'</textarea></label>';
+}
+function readDeviceForm(withLab){
+  const b={name:$('#dfName').value, brand_model:$('#dfModel').value, serial_no:$('#dfSerial').value, status:$('#dfStatus').value,
+    max_daily_hours:$('#dfMax').value, requires_isg:$('#dfIsg').checked, requires_certificate:$('#dfCert').checked, usage_notes:$('#dfNotes').value};
+  if(withLab) b.lab_id=$('#dfLab').value;
+  return b;
+}
+function openDeviceEdit(d){
+  const m=openModal('Cihazı Düzenle — '+d.name, deviceForm(d,null),
+    '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="deSave">Kaydet</button>');
+  $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
+  $('#deSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    await api('/api/devices/'+d.id,{method:'PATCH', body:readDeviceForm(false)});
+    closeModal(); toast('Cihaz bilgileri güncellendi.'); renderLabOps();
+  }));
+}
+
+/* =========================================================
+   5. SISTEM YONETIMI
+   ========================================================= */
+async function renderAdmin(){
+  const tabs=[['users','Kullanıcı & İSG','users'],['labs','Laboratuvarlar','building'],['net','Ağ & LDAP','network'],['smtp','SMTP E-Posta','mail'],['db','Veritabanı & Denetim','db']];
+  $('#content').innerHTML=(S.me.default_secret?secretBanner():'')+'<div class="tabs" id="admTabs">'+tabs.map(t=>'<button data-t="'+t[0]+'" class="'+(S.adminTab===t[0]?'active':'')+'">'+ic(t[2])+t[1]+'</button>').join('')+'</div><div id="admBody">'+loading()+'</div>';
+  $$('#admTabs button').forEach(b=>b.addEventListener('click',()=>{ S.adminTab=b.dataset.t; renderAdmin(); }));
+  const fn={users:admUsers, labs:admLabs, net:admNet, smtp:admSmtp, db:admDb}[S.adminTab];
+  await fn($('#admBody'));
+}
+const ROLE_OPTS=[['student','Öğrenci'],['advisor','Akademik Danışman'],['lab_manager','Lab. Sorumlusu'],['admin','Sistem Yöneticisi']];
+function roleSelect(id, val){ return '<select class="inp" id="'+id+'">'+ROLE_OPTS.map(r=>'<option value="'+r[0]+'"'+(r[0]===val?' selected':'')+'>'+r[1]+'</option>').join('')+'</select>'; }
+
+async function admUsers(box){
+  const users=await api('/api/users');
+  const today=iso(new Date());
+  box.innerHTML='<div class="toolbar"><div class="search">'+ic('search')+'<input class="inp" id="uq" placeholder="Ad, e-posta veya bölüm ara…"></div>'+
+    '<select class="inp" id="urole" style="max-width:220px"><option value="">Tüm roller</option>'+ROLE_OPTS.map(r=>'<option value="'+r[0]+'">'+r[1]+'</option>').join('')+'</select>'+
+    '<select class="inp" id="uisg" style="max-width:220px"><option value="">İSG: tümü</option><option value="ok">İSG geçerli</option><option value="bad">İSG geçersiz / tanımsız</option></select>'+
+    '<button class="btn btn-primary" id="uAdd">'+ic('plus')+'Yeni Kullanıcı</button></div>'+
+    '<div class="card"><div class="tbl-wrap" id="uList"></div></div>';
+  const draw=()=>{
+    const q=$('#uq').value.toLocaleLowerCase('tr'), r=$('#urole').value, isg=$('#uisg').value;
+    const l=users.filter(u=>(!q||(u.full_name+' '+u.email+' '+(u.department||'')).toLocaleLowerCase('tr').includes(q))&&(!r||u.role===r)&&(!isg||(isg==='ok'?u.isg_valid:!u.isg_valid)));
+    $('#uList').innerHTML=l.length?'<table class="t"><thead><tr><th>Ad Soyad</th><th>E-posta</th><th>Rol</th><th>Bölüm</th><th>İSG Geçerlilik</th><th>Durum</th><th></th></tr></thead><tbody>'+
+      l.map(u=>'<tr><td><b>'+esc(u.full_name)+'</b></td><td>'+esc(u.email)+'</td><td><span class="badge b-navy">'+esc(u.role_label)+'</span></td><td class="small">'+esc(u.department||'-')+'</td>'+
+        '<td><div style="display:flex;gap:6px;align-items:center"><input class="inp" type="date" data-isg="'+u.id+'" value="'+esc(u.isg_valid_until||'')+'" style="width:150px;padding:6px 8px">'+(u.isg_valid?'<span class="badge b-ok">Geçerli</span>':'<span class="badge b-bad">'+(u.isg_valid_until?'Doldu':'Yok')+'</span>')+'</div></td>'+
+        '<td>'+(u.is_active?'<span class="badge b-ok">Aktif</span>':'<span class="badge b-gray">Pasif</span>')+'</td>'+
+        '<td><button class="btn btn-ghost btn-sm" data-uedit="'+u.id+'">'+ic('edit')+'Düzenle</button></td></tr>').join('')+'</tbody></table>':empty('Kullanıcı bulunamadı.','users');
+    $$('[data-isg]').forEach(inp=>inp.addEventListener('change',()=>act(inp, async ()=>{
+      await api('/api/users/'+inp.dataset.isg,{method:'PATCH', body:{isg_valid_until:inp.value}});
+      const u=users.find(x=>x.id===+inp.dataset.isg); u.isg_valid_until=inp.value||null; u.isg_valid=!!inp.value&&inp.value>=today;
+      toast('İSG geçerlilik tarihi güncellendi: '+(inp.value?fmtDate(inp.value):'tanımsız')+'.'); draw();
+      if(u.id===S.me.id){ S.me=await api('/api/me'); renderHeader(); }
+    })));
+    $$('[data-uedit]').forEach(b=>b.addEventListener('click',()=>openUser(users.find(x=>x.id===+b.dataset.uedit))));
+  };
+  ['uq','urole','uisg'].forEach(id=>$('#'+id).addEventListener(id==='uq'?'input':'change',draw));
+  $('#uAdd').addEventListener('click',()=>openUser(null));
+  draw();
+}
+function openUser(u){
+  const isNew=!u;
+  u=u||{role:'student',is_active:true};
+  const m=openModal(isNew?'Yeni Kullanıcı':'Kullanıcıyı Düzenle — '+u.full_name,
+    '<div class="row"><label class="f"><span>Ad Soyad *</span><input class="inp" id="ufName" maxlength="150" value="'+esc(u.full_name||'')+'"></label>'+
+    '<label class="f"><span>E-posta *</span><input class="inp" id="ufEmail" type="email" maxlength="200" value="'+esc(u.email||'')+'"'+(isNew?'':' disabled')+'></label></div>'+
+    '<div class="row"><label class="f"><span>Rol *</span>'+roleSelect('ufRole',u.role)+'</label>'+
+    '<label class="f"><span>Bölüm / Birim</span><input class="inp" id="ufDept" maxlength="150" value="'+esc(u.department||'')+'"></label></div>'+
+    '<div class="row"><label class="f"><span>İSG geçerlilik tarihi</span><input class="inp" type="date" id="ufIsg" value="'+esc(u.isg_valid_until||'')+'"></label>'+
+    '<label class="f"><span>'+(isNew?'Şifre *':'Yeni şifre (değişmeyecekse boş bırakın)')+'</span><input class="inp" type="password" id="ufPass" autocomplete="new-password"></label></div>'+
+    (isNew?'':'<label class="check"><input type="checkbox" id="ufAct"'+(u.is_active?' checked':'')+'> Hesap aktif</label>'),
+    '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="ufSave">Kaydet</button>');
+  $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
+  $('#ufSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    const b={full_name:$('#ufName').value, role:$('#ufRole').value, department:$('#ufDept').value, isg_valid_until:$('#ufIsg').value};
+    if($('#ufPass').value) b.password=$('#ufPass').value;
+    if(isNew){ b.email=$('#ufEmail').value; if(!b.password) throw new Error('Yeni kullanıcı için şifre zorunludur.'); await api('/api/users',{method:'POST', body:b}); }
+    else { b.is_active=$('#ufAct').checked; await api('/api/users/'+u.id,{method:'PATCH', body:b}); }
+    closeModal(); toast(isNew?'Kullanıcı eklendi.':'Kullanıcı güncellendi.'); renderAdmin();
+  }));
+}
+
+async function admLabs(box){
+  const [labs, users]=await Promise.all([api('/api/labs'), api('/api/users')]);
+  const mgrs=users.filter(u=>u.role==='lab_manager'||u.role==='admin');
+  const mgrSel=(id,val)=>'<select class="inp" '+id+'><option value="">— Atanmamış —</option>'+mgrs.map(u=>'<option value="'+u.id+'"'+(u.id===val?' selected':'')+'>'+esc(u.full_name)+'</option>').join('')+'</select>';
+  box.innerHTML='<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('building')+'<h3>Laboratuvarlar</h3></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Kod</th><th>Laboratuvar</th><th>Konum</th><th>Cihaz</th><th>Sorumlu</th><th>Durum</th></tr></thead><tbody>'+
+    labs.map(l=>'<tr><td><b>'+esc(l.code)+'</b></td><td>'+esc(l.name)+'<div class="small muted">'+esc(l.description||'')+'</div></td><td>'+esc(l.building_room||'-')+'</td><td>'+l.device_count+'</td><td>'+mgrSel('data-lmgr="'+l.id+'" style="min-width:190px"',l.manager_id)+'</td><td><label class="check" style="margin:0"><input type="checkbox" data-lact="'+l.id+'"'+(l.is_active?' checked':'')+'> Aktif</label></td></tr>').join('')+'</tbody></table></div></div>'+
+    '<div class="card" style="max-width:760px"><div class="card-h">'+ic('plus')+'<h3>Yeni Laboratuvar</h3></div><div class="card-b">'+
+    '<div class="row"><label class="f"><span>Ad *</span><input class="inp" id="nlName" maxlength="150"></label><label class="f" style="flex:0 1 140px"><span>Kod *</span><input class="inp" id="nlCode" maxlength="20"></label></div>'+
+    '<div class="row"><label class="f"><span>Bina / Oda</span><input class="inp" id="nlRoom" maxlength="150"></label><label class="f"><span>Sorumlu</span>'+mgrSel('id="nlMgr"',null)+'</label></div>'+
+    '<label class="f"><span>Açıklama</span><textarea class="inp" id="nlDesc" maxlength="1000"></textarea></label><button class="btn btn-primary" id="nlSave">'+ic('plus')+'Laboratuvarı Ekle</button></div></div>';
+  $$('[data-lmgr]').forEach(s=>s.addEventListener('change',()=>act(s, async ()=>{ await api('/api/labs/'+s.dataset.lmgr,{method:'PATCH', body:{manager_id:s.value?+s.value:null}}); toast('Laboratuvar sorumlusu güncellendi.'); })));
+  $$('[data-lact]').forEach(c=>c.addEventListener('change',()=>act(c, async ()=>{ const sel=$('[data-lmgr="'+c.dataset.lact+'"]'); await api('/api/labs/'+c.dataset.lact,{method:'PATCH', body:{is_active:c.checked, manager_id:sel.value?+sel.value:null}}); toast('Laboratuvar '+(c.checked?'aktif':'pasif')+' yapıldı.'); })));
+  $('#nlSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    await api('/api/labs',{method:'POST', body:{name:$('#nlName').value, code:$('#nlCode').value, building_room:$('#nlRoom').value, manager_id:$('#nlMgr').value?+$('#nlMgr').value:null, description:$('#nlDesc').value}});
+    toast('Laboratuvar eklendi.'); renderAdmin();
+  }));
+}
+
+async function admNet(box){
+  const st=await api('/api/admin/settings');
+  box.innerHTML='<div class="grid g2" style="align-items:start">'+
+    '<div class="card"><div class="card-h">'+ic('shield')+'<h3>Ağ Erişim Kısıtlaması (CIDR)</h3></div><div class="card-b">'+
+      '<div class="banner banner-info">'+ic('info')+'<div>Bağlandığınız IP adresi: <code>'+esc(st.client_ip)+'</code>. Kendi adresinizi dışarıda bırakan bir ayar kaydedilmez.</div></div>'+
+      '<label class="check"><input type="checkbox" id="ipOn"'+(st.ip_filter_enabled==='1'?' checked':'')+'> IP filtresini etkinleştir (yalnızca izinli ağlar erişebilir)</label>'+
+      '<label class="f"><span>İzin verilen IP blokları (her satıra veya virgülle bir CIDR)</span><textarea class="inp" id="ipList" rows="6" style="font-family:Consolas,monospace">'+esc(st.allowed_cidrs.split(',').join('\n'))+'</textarea></label>'+
+      '<div class="small muted" style="margin:-6px 0 12px">Örnek: <code>10.0.0.0/8</code> kampüs ağı, <code>172.20.0.0/16</code> VPN havuzu, <code>127.0.0.1/32</code> sunucunun kendisi.</div>'+
+      '<button class="btn btn-primary" id="ipSave">Ağ Ayarlarını Kaydet</button></div></div>'+
+    '<div class="card"><div class="card-h">'+ic('users')+'<h3>LDAP / Active Directory</h3></div><div class="card-b">'+
+      '<label class="check"><input type="checkbox" id="ldOn"'+(st.ldap_enabled==='1'?' checked':'')+'> LDAP ile kimlik doğrulamayı etkinleştir</label>'+
+      '<div class="row"><label class="f" style="flex:2 1 200px"><span>Sunucu</span><input class="inp" id="ldSrv" value="'+esc(st.ldap_server)+'" placeholder="ldap.universite.edu.tr"></label><label class="f" style="flex:0 1 100px"><span>Port</span><input class="inp" id="ldPort" value="'+esc(st.ldap_port)+'"></label></div>'+
+      '<label class="f"><span>Temel DN (Base DN)</span><input class="inp" id="ldBase" value="'+esc(st.ldap_base_dn)+'" placeholder="dc=universite,dc=edu,dc=tr"></label>'+
+      '<label class="f"><span>Bağlanma DN (servis hesabı)</span><input class="inp" id="ldBind" value="'+esc(st.ldap_bind_dn)+'" placeholder="cn=labnet,ou=servis,dc=universite,dc=edu,dc=tr"></label>'+
+      '<label class="f"><span>Bağlanma şifresi '+(st.ldap_bind_pass_set?'<span class="badge b-ok">kayıtlı</span>':'')+'</span><input class="inp" type="password" id="ldPass" autocomplete="new-password" placeholder="'+(st.ldap_bind_pass_set?'Değiştirmek için yazın':'')+'"></label>'+
+      '<label class="f"><span>Test için kullanıcı e-postası (isteğe bağlı)</span><input class="inp" id="ldTestMail" placeholder="ad.soyad@universite.edu.tr"></label>'+
+      '<div class="small muted" style="margin:-6px 0 12px">Port 636 veya <code>ldaps://</code> ile SSL kullanılır. LDAP\'ta doğrulanan ama LABNET\'te kaydı olmayan kullanıcı Öğrenci rolüyle eklenir.</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="ldSave">LDAP Ayarlarını Kaydet</button><button class="btn btn-ghost" id="ldTest">'+ic('plug')+'LDAP Bağlantısını Test Et</button></div>'+
+      '<div id="ldResult" style="margin-top:12px"></div></div></div></div>';
+  $('#ipSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    const cidrs=$('#ipList').value.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean).join(',');
+    await api('/api/admin/settings',{method:'PUT', body:{allowed_cidrs:cidrs, ip_filter_enabled:$('#ipOn').checked}});
+    toast('Ağ ayarları kaydedildi. IP filtresi '+($('#ipOn').checked?'açık':'kapalı')+'.'); admNet(box);
+  }));
+  const ldBody=()=>({ldap_enabled:$('#ldOn').checked, ldap_server:$('#ldSrv').value, ldap_port:$('#ldPort').value, ldap_base_dn:$('#ldBase').value, ldap_bind_dn:$('#ldBind').value, ldap_bind_pass:$('#ldPass').value});
+  $('#ldSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{ await api('/api/admin/settings',{method:'PUT', body:ldBody()}); toast('LDAP ayarları kaydedildi.'); admNet(box); }));
+  $('#ldTest').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    $('#ldResult').innerHTML='<div class="small muted">Bağlantı deneniyor…</div>';
+    const b=ldBody(); b.test_email=$('#ldTestMail').value;
+    const r=await api('/api/admin/ldap-test',{method:'POST', body:b});
+    $('#ldResult').innerHTML='<div class="banner '+(r.ok?'banner-info':'banner-warn')+'">'+ic(r.ok?'check2':'alert')+'<div>'+esc(r.message)+'</div></div>';
+    toast(r.ok?'LDAP bağlantısı başarılı.':'LDAP bağlantısı başarısız.', r.ok?'':'err');
+  }));
+}
+
+async function admSmtp(box){
+  const st=await api('/api/admin/settings');
+  box.innerHTML='<div class="card" style="max-width:760px"><div class="card-h">'+ic('mail')+'<h3>SMTP E-Posta Ayarları</h3></div><div class="card-b">'+
+    '<label class="check"><input type="checkbox" id="smOn"'+(st.smtp_enabled==='1'?' checked':'')+'> Durum değişikliklerinde e-posta bildirimi gönder</label>'+
+    '<div class="row"><label class="f" style="flex:2 1 220px"><span>SMTP sunucusu</span><input class="inp" id="smHost" value="'+esc(st.smtp_host)+'" placeholder="smtp.universite.edu.tr"></label><label class="f" style="flex:0 1 110px"><span>Port</span><input class="inp" id="smPort" value="'+esc(st.smtp_port)+'"></label></div>'+
+    '<div class="row"><label class="f"><span>Kullanıcı adı</span><input class="inp" id="smUser" value="'+esc(st.smtp_user)+'" autocomplete="off"></label>'+
+    '<label class="f"><span>Şifre '+(st.smtp_pass_set?'<span class="badge b-ok">kayıtlı</span>':'')+'</span><input class="inp" type="password" id="smPass" autocomplete="new-password" placeholder="'+(st.smtp_pass_set?'Değiştirmek için yazın':'')+'"></label></div>'+
+    '<label class="f"><span>Gönderen adresi</span><input class="inp" id="smFrom" value="'+esc(st.smtp_from)+'" placeholder="labnet@universite.edu.tr"></label>'+
+    '<div class="small muted" style="margin:-6px 0 12px">587: STARTTLS (sunucu destekliyorsa), 465: SSL. Gönderim hataları sistemi durdurmaz, denetim kayıtlarına yazılır.</div>'+
+    '<button class="btn btn-primary" id="smSave">SMTP Ayarlarını Kaydet</button>'+
+    '<hr style="border:0;border-top:1px solid var(--line);margin:18px 0">'+
+    '<div class="row" style="align-items:flex-end"><label class="f"><span>Test e-postası alıcısı</span><input class="inp" id="smTo" value="'+esc(S.me.email)+'"></label><div style="flex:0 0 auto;margin-bottom:12px"><button class="btn btn-ghost" id="smTest">'+ic('send')+'Test E-Postası Gönder</button></div></div>'+
+    '<div id="smResult"></div></div></div>';
+  $('#smSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    await api('/api/admin/settings',{method:'PUT', body:{smtp_enabled:$('#smOn').checked, smtp_host:$('#smHost').value, smtp_port:$('#smPort').value, smtp_user:$('#smUser').value, smtp_pass:$('#smPass').value, smtp_from:$('#smFrom').value}});
+    toast('SMTP ayarları kaydedildi.'); admSmtp(box);
+  }));
+  $('#smTest').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    $('#smResult').innerHTML='<div class="small muted">Gönderiliyor… (kayıtlı ayarlar kullanılır)</div>';
+    const r=await api('/api/admin/smtp-test',{method:'POST', body:{to:$('#smTo').value}});
+    $('#smResult').innerHTML='<div class="banner '+(r.ok?'banner-info':'banner-warn')+'">'+ic(r.ok?'check2':'alert')+'<div>'+esc(r.message)+'</div></div>';
+    toast(r.ok?'Test e-postası gönderildi.':'Test e-postası gönderilemedi.', r.ok?'':'err');
+  }));
+}
+
+async function admDb(box){
+  const logs=await api('/api/admin/audit');
+  box.innerHTML='<div class="card" style="margin-bottom:16px"><div class="card-b" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div class="dev-ic">'+ic('db')+'</div><div style="flex:1;min-width:220px"><b style="color:var(--navy)">Veritabanı Yedeği</b><div class="small muted">Çalışan veritabanının tutarlı bir kopyası (<code>labnet.db</code>) bilgisayarınıza indirilir. Yedeği güvenli bir yerde saklayın; parola özetleri ve ayarlar içerir.</div></div><a class="btn btn-navy" href="/api/admin/backup" id="bkDl">'+ic('download')+'Veritabanını İndir</a></div></div>'+
+    '<div class="card"><div class="card-h">'+ic('list')+'<h3>Denetim Kayıtları</h3><span class="muted small">Son 100 hareket</span><div class="r"><input class="inp" id="lgQ" placeholder="Ara…" style="width:170px;max-width:100%"><button class="btn btn-ghost btn-sm" id="lgRef">Yenile</button></div></div><div class="tbl-wrap" id="lgList"></div></div>';
+  const draw=()=>{
+    const q=$('#lgQ').value.toLocaleLowerCase('tr');
+    const l=logs.filter(x=>!q||(x.user_email+' '+x.action+' '+(ACTION_LABELS[x.action]||'')+' '+x.detail+' '+x.ip_address).toLocaleLowerCase('tr').includes(q));
+    $('#lgList').innerHTML=l.length?'<table class="t"><thead><tr><th>Zaman</th><th>Kullanıcı</th><th>İşlem</th><th>Ayrıntı</th><th>IP</th></tr></thead><tbody>'+
+      l.map(x=>'<tr><td style="white-space:nowrap">'+fmtDT(x.created_at)+'</td><td>'+esc(x.user_email)+'</td><td><span class="badge '+(/HATA|BASARISIZ|RET|IPTAL/.test(x.action)?'b-bad':'b-navy')+'">'+esc(ACTION_LABELS[x.action]||x.action)+'</span></td><td class="small">'+esc(x.detail)+'</td><td><code>'+esc(x.ip_address)+'</code></td></tr>').join('')+'</tbody></table>':empty('Kayıt yok.');
+  };
+  $('#lgQ').addEventListener('input',draw);
+  $('#lgRef').addEventListener('click',()=>admDb(box));
+  $('#bkDl').addEventListener('click',()=>toast('Yedek dosyası indiriliyor…'));
+  draw();
+}
+
+/* ---------- Baslangic ---------- */
+hydrateIcons();
+(async ()=>{
+  try{ const me=await api('/api/me'); if(!me.authenticated){ showLogin(); return; } S.me=me; await startApp(); }
+  catch(e){ showLogin(); }
+})();
+</script>
+</body>
+</html>
