@@ -678,7 +678,7 @@ window.addEventListener('hashchange',()=>{ if(S.me){ const p=location.hash.repla
    1. GOSTERGE PANELI
    ========================================================= */
 const ACTION_LABELS={GIRIS:'Giriş',CIKIS:'Çıkış',GIRIS_BASARISIZ:'Başarısız giriş',RANDEVU_OLUSTUR:'Randevu talebi',RANDEVU_IPTAL:'Randevu iptali',
-  RANDEVU_TAMAMLANDI:'Kullanım raporu',KULLANIM_BASLADI:'Kullanım başladı',GELINMEDI:'Gelinmedi',ARIZA_BILDIRIMI:'Arıza bildirimi',ARIZA_KAPATILDI:'Arıza kapatıldı',RAPOR_INDIRILDI:'Rapor indirildi',DANISMAN_ONAY:'Danışman onayı',DANISMAN_RET:'Danışman reddi',LAB_ONAY:'Lab. onayı',LAB_RET:'Lab. reddi',
+  RANDEVU_TAMAMLANDI:'Kullanım raporu',KULLANIM_BASLADI:'Kullanım başladı',GELINMEDI:'Gelinmedi',ARIZA_BILDIRIMI:'Arıza bildirimi',ARIZA_KAPATILDI:'Arıza kapatıldı',RAPOR_INDIRILDI:'Rapor indirildi',LAB_SILINDI:'Laboratuvar silindi',CIHAZ_SILINDI:'Cihaz silindi',FAKULTE_EKLENDI:'Fakülte eklendi',FAKULTE_GUNCELLENDI:'Fakülte güncellendi',FAKULTE_SILINDI:'Fakülte silindi',DANISMAN_ONAY:'Danışman onayı',DANISMAN_RET:'Danışman reddi',LAB_ONAY:'Lab. onayı',LAB_RET:'Lab. reddi',
   CIHAZ_DURUM:'Cihaz durumu',CIHAZ_EKLENDI:'Cihaz eklendi',CIHAZ_GUNCELLENDI:'Cihaz güncellendi',SERTIFIKA_TANIMLANDI:'Sertifika tanımlandı',
   SERTIFIKA_YENILENDI:'Sertifika yenilendi',SERTIFIKA_IPTAL:'Sertifika iptali',KULLANICI_EKLENDI:'Kullanıcı eklendi',KULLANICI_GUNCELLENDI:'Kullanıcı güncellendi',
   AYAR_GUNCELLENDI:'Ayar güncellendi',LDAP_TEST:'LDAP testi',SMTP_TEST:'SMTP testi',YEDEK_INDIRILDI:'Yedek indirildi',KURULUM:'Kurulum',
@@ -1127,8 +1127,10 @@ async function renderLabOps(){
   const myLabs=S.labs.filter(l=>S.me.role==='admin'||l.manager_id===S.me.id);
   const box=$('#labBody');
   if(S.labTab==='devices'){
-    if(!managed.length){ box.innerHTML=empty('Sorumlusu olduğunuz laboratuvarda cihaz yok.','micro'); return; }
-    box.innerHTML='<div class="card"><div class="card-h">'+ic('micro')+'<h3>Sorumlu Olduğunuz Cihazlar</h3><span class="r muted small">Durum değişikliği anında kaydedilir</span></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Cihaz</th><th>Laboratuvar</th><th>Gereksinim</th><th>Randevu Kuralları</th><th>Durum</th><th></th></tr></thead><tbody>'+
+    const labsCard = myLabs.length ? '<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('flask')+'<h3>'+(S.me.role==='admin'?'Laboratuvarlar':'Laboratuvarlarım')+'</h3><span class="r muted small">Ad, konum ve açıklama düzenlenebilir</span></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Kod</th><th>Laboratuvar</th><th>Konum</th><th class="num">Cihaz</th><th></th></tr></thead><tbody>'+
+      myLabs.map(l=>'<tr><td>'+facPill(l.faculty_code,l.faculty_name)+'<b>'+esc(l.code)+'</b></td><td>'+esc(l.name)+'<div class="small muted">'+esc(l.description||'')+'</div></td><td class="small">'+esc(l.building_room||'-')+'</td><td class="num">'+l.device_count+'</td><td><button class="btn btn-ghost btn-sm" data-labedit="'+l.id+'">'+ic('edit')+'Düzenle</button></td></tr>').join('')+'</tbody></table></div></div>' : '';
+    if(!managed.length){ box.innerHTML=labsCard+empty('Sorumlusu olduğunuz laboratuvarda cihaz yok. "Yeni Cihaz Ekle" sekmesinden ekleyebilirsiniz.','micro'); $$('[data-labedit]').forEach(b=>b.addEventListener('click',()=>openLabEdit(S.labs.find(x=>x.id===+b.dataset.labedit), false, [], [], renderLabOps))); return; }
+    box.innerHTML=labsCard+'<div class="card"><div class="card-h">'+ic('micro')+'<h3>Sorumlu Olduğunuz Cihazlar</h3><span class="r muted small">Durum değişikliği anında kaydedilir</span></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Cihaz</th><th>Laboratuvar</th><th>Gereksinim</th><th>Randevu Kuralları</th><th>Durum</th><th></th></tr></thead><tbody>'+
       managed.map(d=>'<tr><td><b>'+esc(d.name)+'</b><div class="small muted">'+esc(d.brand_model||'')+(d.serial_no?' · SN '+esc(d.serial_no):'')+'</div></td><td>'+esc(d.lab_name)+'</td><td>'+(d.requires_isg?'<span class="tag">İSG</span> ':'')+(d.requires_certificate?'<span class="tag">Sertifika</span>':'')+(!d.requires_isg&&!d.requires_certificate?'<span class="muted small">Yok</span>':'')+'</td><td class="small">En az '+fmtMin(d.min_minutes)+' · günde '+d.max_daily_hours+' sa'+(d.weekly_max_hours?' · haftada '+d.weekly_max_hours+' sa':'')+'<br><span class="muted">'+d.max_advance_days+' gün ileriye'+(d.in_use?' · <b style="color:var(--info)">şu an kullanımda</b>':'')+(d.open_issues?' · <b style="color:var(--bad)">'+d.open_issues+' açık arıza</b>':'')+'</span></td>'+
         '<td><select class="inp" data-status="'+d.id+'" style="min-width:130px"><option value="active"'+(d.status==='active'?' selected':'')+'>Aktif</option><option value="maintenance"'+(d.status==='maintenance'?' selected':'')+'>Bakımda</option><option value="broken"'+(d.status==='broken'?' selected':'')+'>Arızalı</option></select></td>'+
         '<td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-edit="'+d.id+'">'+ic('edit')+'Düzenle</button> <button class="btn btn-ghost btn-sm" data-qr="'+d.id+'" title="QR etiketi">'+ic('qr')+'</button></td></tr>').join('')+'</tbody></table></div></div>';
@@ -1139,6 +1141,11 @@ async function renderLabOps(){
     })));
     $$('[data-edit]').forEach(b=>b.addEventListener('click',()=>openDeviceEdit(S.devices.find(x=>x.id===+b.dataset.edit))));
     $$('[data-qr]').forEach(b=>b.addEventListener('click',()=>openQr(S.devices.find(x=>x.id===+b.dataset.qr))));
+    $$('[data-labedit]').forEach(b=>b.addEventListener('click',async()=>{
+      const l=S.labs.find(x=>x.id===+b.dataset.labedit);
+      if(S.me.role==='admin'){ const [us,fs]=await Promise.all([api('/api/users'),api('/api/faculties')]); openLabEdit(l,true,us,fs,async()=>{ await loadBase(); renderLabOps(); }); }
+      else openLabEdit(l,false,[],[],async()=>{ await loadBase(); renderLabOps(); });
+    }));
   } else if(S.labTab==='newdev'){
     if(!myLabs.length){ box.innerHTML=empty('Sorumlusu olduğunuz laboratuvar yok.','building'); return; }
     box.innerHTML='<div class="card" style="max-width:760px"><div class="card-h">'+ic('plus')+'<h3>Yeni Cihaz Ekle</h3></div><div class="card-b">'+deviceForm(null,myLabs)+'<button class="btn btn-primary" id="ndSave">'+ic('plus')+'Cihazı Kaydet</button></div></div>';
@@ -1216,7 +1223,7 @@ function openQr(d){
 }
 function deviceForm(d, labs){
   d=d||{status:'active',max_daily_hours:8,requires_isg:1,requires_certificate:0,min_minutes:30,max_advance_days:60,weekly_max_hours:0};
-  return (labs?'<label class="f"><span>Laboratuvar *</span><select class="inp" id="dfLab">'+labs.map(l=>'<option value="'+l.id+'">'+esc(l.name)+'</option>').join('')+'</select></label>':'')+
+  return (labs?'<label class="f"><span>Laboratuvar *</span><select class="inp" id="dfLab">'+labs.map(l=>'<option value="'+l.id+'"'+(l.id===d.lab_id?' selected':'')+'>'+esc((l.faculty_code?l.faculty_code+' · ':'')+l.name)+'</option>').join('')+'</select></label>':'')+
     '<div class="row"><label class="f"><span>Cihaz adı *</span><input class="inp" id="dfName" maxlength="150" value="'+esc(d.name||'')+'"></label>'+
     '<label class="f"><span>Marka / Model</span><input class="inp" id="dfModel" maxlength="150" value="'+esc(d.brand_model||'')+'"></label></div>'+
     '<div class="row"><label class="f"><span>Seri No</span><input class="inp" id="dfSerial" maxlength="80" value="'+esc(d.serial_no||'')+'"></label>'+
@@ -1236,13 +1243,43 @@ function readDeviceForm(withLab){
   return b;
 }
 function openDeviceEdit(d){
-  const m=openModal('Cihazı Düzenle — '+d.name, deviceForm(d,null),
-    '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="deSave">Kaydet</button>');
+  const myLabs=S.labs.filter(l=>S.me.role==='admin'||l.manager_id===S.me.id);
+  const m=openModal('Cihazı Düzenle — '+d.name, deviceForm(d,myLabs)+'<div class="small muted">Laboratuvarı değiştirerek cihazı sorumlusu olduğunuz başka bir laboratuvara taşıyabilirsiniz.</div>',
+    '<button class="btn btn-danger" id="deDel" style="margin-right:auto">'+ic('trash')+'Cihazı Sil</button><button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="deSave">Kaydet</button>');
   $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
   $('#deSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
-    await api('/api/devices/'+d.id,{method:'PATCH', body:readDeviceForm(false)});
+    await api('/api/devices/'+d.id,{method:'PATCH', body:readDeviceForm(true)});
     closeModal(); toast('Cihaz bilgileri güncellendi.'); renderLabOps();
   }));
+  $('#deDel').addEventListener('click',e=>{
+    if(!confirm('"'+d.name+'" cihazı kalıcı olarak silinsin mi? (Randevu geçmişi olan cihazlar silinemez.)')) return;
+    act(e.currentTarget, async ()=>{ await api('/api/devices/'+d.id,{method:'DELETE'}); closeModal(); toast('Cihaz silindi.'); renderLabOps(); });
+  });
+}
+function openLabEdit(l, full, users, facs, after){
+  const mgrs=(users||[]).filter(u=>u.role==='lab_manager'||u.role==='admin');
+  const m=openModal('Laboratuvarı Düzenle — '+l.name,
+    '<div class="row"><label class="f"><span>Laboratuvar adı *</span><input class="inp" id="leName" maxlength="150" value="'+esc(l.name)+'"></label>'+
+    (full?'<label class="f" style="flex:0 1 140px"><span>Kod *</span><input class="inp" id="leCode" maxlength="20" value="'+esc(l.code)+'"></label>':'')+'</div>'+
+    (full?'<div class="row"><label class="f"><span>Fakülte</span><select class="inp" id="leFac"><option value="">— Seçiniz —</option>'+(facs||[]).map(f=>'<option value="'+f.id+'"'+(f.id===l.faculty_id?' selected':'')+'>'+esc(f.name)+'</option>').join('')+'</select></label>'+
+      '<label class="f"><span>Sorumlu</span><select class="inp" id="leMgr"><option value="">— Atanmamış —</option>'+mgrs.map(u=>'<option value="'+u.id+'"'+(u.id===l.manager_id?' selected':'')+'>'+esc(u.full_name)+'</option>').join('')+'</select></label></div>':'')+
+    '<label class="f"><span>Bina / Oda</span><input class="inp" id="leRoom" maxlength="150" value="'+esc(l.building_room||'')+'"></label>'+
+    '<label class="f"><span>Açıklama</span><textarea class="inp" id="leDesc" maxlength="1000">'+esc(l.description||'')+'</textarea></label>'+
+    (full?'':'<div class="small muted">Kod, fakülte ve sorumlu değişikliği için sistem yöneticisine başvurun.</div>'),
+    (full?'<button class="btn btn-danger" id="leDel" style="margin-right:auto"'+(l.device_count?' disabled title="Önce cihazları taşıyın veya silin"':'')+'>'+ic('trash')+'Sil</button>':'')+
+    '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="leSave">Kaydet</button>');
+  $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
+  $('#leSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    const b={name:$('#leName').value, building_room:$('#leRoom').value, description:$('#leDesc').value};
+    if(full){ b.code=$('#leCode').value; b.faculty_id=$('#leFac').value?+$('#leFac').value:null; b.manager_id=$('#leMgr').value?+$('#leMgr').value:null; }
+    await api('/api/labs/'+l.id,{method:'PATCH', body:b});
+    closeModal(); toast('Laboratuvar bilgileri güncellendi.'); after();
+  }));
+  const del=$('#leDel');
+  if(del) del.addEventListener('click',e=>{
+    if(!confirm('"'+l.name+'" laboratuvarı silinsin mi?')) return;
+    act(e.currentTarget, async ()=>{ await api('/api/labs/'+l.id,{method:'DELETE'}); closeModal(); toast('Laboratuvar silindi.'); after(); });
+  });
 }
 
 /* =========================================================
@@ -1316,7 +1353,7 @@ async function admLabs(box){
   box.innerHTML='<div class="grid g2" style="margin-bottom:16px;align-items:start">'+
     '<div class="card"><div class="card-h">'+ic('building')+'<h3>Kurum ve Fakülteler</h3></div><div class="card-b">'+
       '<label class="f"><span>Kurum / birim adı (giriş ekranında ve menüde görünür)</span><div style="display:flex;gap:8px"><input class="inp" id="instIn" maxlength="150" value="'+esc(st.institution_name||'')+'"><button class="btn btn-primary" id="instSave">Kaydet</button></div></label>'+
-      '<table class="t" style="margin-bottom:12px"><thead><tr><th>Kod</th><th>Fakülte</th><th class="num">Lab.</th><th class="num">Cihaz</th></tr></thead><tbody>'+facs.map(f=>'<tr><td>'+facPill(f.code,f.name)+'</td><td>'+esc(f.name)+'</td><td class="num">'+f.lab_count+'</td><td class="num">'+f.device_count+'</td></tr>').join('')+'</tbody></table>'+
+      '<div class="tbl-wrap" style="margin-bottom:12px"><table class="t"><thead><tr><th>Kod</th><th>Fakülte</th><th class="num">Lab.</th><th class="num">Cihaz</th><th></th></tr></thead><tbody>'+facs.map(f=>'<tr><td>'+facPill(f.code,f.name)+'</td><td>'+esc(f.name)+'</td><td class="num">'+f.lab_count+'</td><td class="num">'+f.device_count+'</td><td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-fedit="'+f.id+'" title="Düzenle">'+ic('edit')+'</button> <button class="btn btn-danger btn-sm" data-fdel="'+f.id+'" title="Sil"'+(f.lab_count?' disabled':'')+'>'+ic('trash')+'</button></td></tr>').join('')+'</tbody></table></div>'+
       '<div class="row" style="align-items:flex-end"><label class="f"><span>Yeni fakülte / birim adı</span><input class="inp" id="nfName" maxlength="150" placeholder="Örn. Veteriner Fakültesi"></label><label class="f" style="flex:0 1 100px"><span>Kod</span><input class="inp" id="nfCode" maxlength="10" placeholder="VF"></label><div style="flex:0 0 auto;margin-bottom:12px"><button class="btn btn-ghost" id="nfSave">'+ic('plus')+'Ekle</button></div></div>'+
     '</div></div>'+
     '<div class="card"><div class="card-h">'+ic('clock')+'<h3>Kullanımı Başlatma ve Gelinmeyen Randevu Kuralları</h3></div><div class="card-b">'+
@@ -1324,8 +1361,8 @@ async function admLabs(box){
     '<label class="f"><span>Başlatılmazsa kaç dakika sonra "gelinmedi" sayılsın (0 = kapalı)</span><input class="inp" type="number" id="ruNoshow" min="0" max="240" value="'+esc(st.noshow_minutes)+'"></label>'+
     '<div style="flex:0 0 auto;margin-bottom:12px"><button class="btn btn-primary" id="ruSave">Kaydet</button></div></div>'+
     '<div class="small muted">Gelinmedi denetimi açıkken onaylı randevunun sahibi, cihazın başında "Kullanımı Başlat" demezse randevu belirtilen süre sonunda kapanır ve cihaz başkalarına açılır. Erken bitirilen kullanımda kalan süre de otomatik serbest kalır. Cihaz bazındaki kurallar (en kısa süre, kaç gün ileriye, haftalık sınır) Lab. Sorumlusu İşlemleri &gt; Cihaz Durumları &gt; Düzenle ekranındadır.</div></div></div></div>'+
-    '<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('flask')+'<h3>Laboratuvarlar</h3></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Kod</th><th>Fakülte</th><th>Laboratuvar</th><th>Konum</th><th>Cihaz</th><th>Sorumlu</th><th>Durum</th></tr></thead><tbody>'+
-    labs.map(l=>'<tr><td><b>'+esc(l.code)+'</b></td><td>'+facSel('data-lfac="'+l.id+'" style="min-width:170px"',l.faculty_id)+'</td><td>'+esc(l.name)+'<div class="small muted">'+esc(l.description||'')+'</div></td><td>'+esc(l.building_room||'-')+'</td><td>'+l.device_count+'</td><td>'+mgrSel('data-lmgr="'+l.id+'" style="min-width:190px"',l.manager_id)+'</td><td><label class="check" style="margin:0"><input type="checkbox" data-lact="'+l.id+'"'+(l.is_active?' checked':'')+'> Aktif</label></td></tr>').join('')+'</tbody></table></div></div>'+
+    '<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('flask')+'<h3>Laboratuvarlar</h3></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Kod</th><th>Fakülte</th><th>Laboratuvar</th><th>Konum</th><th>Cihaz</th><th>Sorumlu</th><th>Durum</th><th></th></tr></thead><tbody>'+
+    labs.map(l=>'<tr><td><b>'+esc(l.code)+'</b></td><td>'+facSel('data-lfac="'+l.id+'" style="min-width:170px"',l.faculty_id)+'</td><td>'+esc(l.name)+'<div class="small muted">'+esc(l.description||'')+'</div></td><td>'+esc(l.building_room||'-')+'</td><td>'+l.device_count+'</td><td>'+mgrSel('data-lmgr="'+l.id+'" style="min-width:190px"',l.manager_id)+'</td><td><label class="check" style="margin:0"><input type="checkbox" data-lact="'+l.id+'"'+(l.is_active?' checked':'')+'> Aktif</label></td><td><button class="btn btn-ghost btn-sm" data-ladm="'+l.id+'">'+ic('edit')+'Düzenle</button></td></tr>').join('')+'</tbody></table></div></div>'+
     '<div class="card" style="max-width:760px"><div class="card-h">'+ic('plus')+'<h3>Yeni Laboratuvar</h3></div><div class="card-b">'+
     '<div class="row"><label class="f"><span>Ad *</span><input class="inp" id="nlName" maxlength="150"></label><label class="f" style="flex:0 1 140px"><span>Kod *</span><input class="inp" id="nlCode" maxlength="20"></label></div>'+
     '<div class="row"><label class="f"><span>Fakülte *</span>'+facSel('id="nlFac"',null)+'</label><label class="f"><span>Bina / Oda</span><input class="inp" id="nlRoom" maxlength="150"></label><label class="f"><span>Sorumlu</span>'+mgrSel('id="nlMgr"',null)+'</label></div>'+
@@ -1333,6 +1370,19 @@ async function admLabs(box){
   $$('[data-lmgr]').forEach(s=>s.addEventListener('change',()=>act(s, async ()=>{ await api('/api/labs/'+s.dataset.lmgr,{method:'PATCH', body:{manager_id:s.value?+s.value:null}}); toast('Laboratuvar sorumlusu güncellendi.'); })));
   $$('[data-lact]').forEach(c=>c.addEventListener('change',()=>act(c, async ()=>{ const sel=$('[data-lmgr="'+c.dataset.lact+'"]'); await api('/api/labs/'+c.dataset.lact,{method:'PATCH', body:{is_active:c.checked, manager_id:sel.value?+sel.value:null}}); toast('Laboratuvar '+(c.checked?'aktif':'pasif')+' yapıldı.'); })));
   $$('[data-lfac]').forEach(sel=>sel.addEventListener('change',()=>act(sel, async ()=>{ await api('/api/labs/'+sel.dataset.lfac,{method:'PATCH', body:{faculty_id:sel.value?+sel.value:null}}); toast('Laboratuvarın fakültesi güncellendi.'); })));
+  $$('[data-ladm]').forEach(b=>b.addEventListener('click',()=>openLabEdit(labs.find(x=>x.id===+b.dataset.ladm), true, users, facs, renderAdmin)));
+  $$('[data-fedit]').forEach(b=>b.addEventListener('click',()=>{
+    const f=facs.find(x=>x.id===+b.dataset.fedit);
+    const m=openModal('Fakülteyi Düzenle','<div class="row"><label class="f"><span>Fakülte / birim adı *</span><input class="inp" id="feName" maxlength="150" value="'+esc(f.name)+'"></label><label class="f" style="flex:0 1 110px"><span>Kod *</span><input class="inp" id="feCode" maxlength="10" value="'+esc(f.code)+'"></label></div>',
+      '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="feSave">Kaydet</button>');
+    $$('[data-close]',m).forEach(x=>x.addEventListener('click',closeModal));
+    $('#feSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{ await api('/api/faculties/'+f.id,{method:'PATCH', body:{name:$('#feName').value, code:$('#feCode').value}}); closeModal(); toast('Fakülte güncellendi.'); renderAdmin(); }));
+  }));
+  $$('[data-fdel]').forEach(b=>b.addEventListener('click',()=>{
+    const f=facs.find(x=>x.id===+b.dataset.fdel);
+    if(!confirm('"'+f.name+'" silinsin mi?')) return;
+    act(b, async ()=>{ await api('/api/faculties/'+f.id,{method:'DELETE'}); toast('Fakülte silindi.'); renderAdmin(); });
+  }));
   $('#instSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{ await api('/api/admin/settings',{method:'PUT', body:{institution_name:$('#instIn').value}}); loadInfo(); toast('Kurum adı kaydedildi.'); }));
   $('#nfSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{ await api('/api/faculties',{method:'POST', body:{name:$('#nfName').value, code:$('#nfCode').value}}); toast('Fakülte eklendi.'); renderAdmin(); }));
   $('#ruSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{

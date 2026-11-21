@@ -1091,24 +1091,102 @@ def api_lab_create():
 
 
 @app.route("/api/labs/<int:lab_id>", methods=["PATCH"])
-@login_required("admin")
+@login_required("admin", "lab_manager")
 def api_lab_update(lab_id):
+    """Yonetici her alani; lab. sorumlusu yalnizca kendi laboratuvarinin adini, konumunu ve aciklamasini degistirir."""
     data = body()
+    u = current_user()
     db = get_db()
     lab = db.execute("SELECT * FROM laboratories WHERE id=?", (lab_id,)).fetchone()
     if not lab:
         raise ApiError("Laboratuvar bulunamadı.", 404)
-    manager_id = data.get("manager_id", lab["manager_id"]) or None
-    if manager_id is not None:
-        m = db.execute("SELECT role FROM users WHERE id=?", (manager_id,)).fetchone()
-        if not m or m["role"] not in ("lab_manager", "admin"):
-            raise ApiError("Sorumlu olarak yalnızca Lab. Sorumlusu rolündeki bir kullanıcı seçilebilir.")
-    is_active = 1 if data.get("is_active", lab["is_active"]) else 0
-    faculty_id = _faculty_param(db, data["faculty_id"]) if "faculty_id" in data else lab["faculty_id"]
-    db.execute("UPDATE laboratories SET manager_id=?, is_active=?, faculty_id=? WHERE id=?",
-               (manager_id, is_active, faculty_id, lab_id))
+    is_admin = u["role"] == "admin"
+    if not is_admin:
+        if lab["manager_id"] != u["id"]:
+            raise ApiError("Yalnızca sorumlusu olduğunuz laboratuvarı düzenleyebilirsiniz.", 403)
+        forbidden = [k for k in ("code", "faculty_id", "manager_id", "is_active") if k in data]
+        if forbidden:
+            raise ApiError("Kod, fakülte, sorumlu ve aktiflik yalnızca sistem yöneticisi tarafından değiştirilir.", 403)
+    sets, params, changes = [], [], []
+    if "name" in data:
+        sets.append("name=?"); params.append(s(data, "name", True, 150, "Laboratuvar adı")); changes.append("ad")
+    if "building_room" in data:
+        sets.append("building_room=?"); params.append(s(data, "building_room", max_len=150)); changes.append("konum")
+    if "description" in data:
+        sets.append("description=?"); params.append(s(data, "description", max_len=1000)); changes.append("açıklama")
+    if "code" in data:
+        code = s(data, "code", True, 20, "Kod").upper()
+        if db.execute("SELECT 1 FROM laboratories WHERE code=? AND id<>?", (code, lab_id)).fetchone():
+            raise ApiError("Bu kodla kayıtlı başka bir laboratuvar var.")
+        sets.append("code=?"); params.append(code); changes.append(f"kod={code}")
+    if "manager_id" in data:
+        manager_id = data.get("manager_id") or None
+        if manager_id is not None:
+            m = db.execute("SELECT role FROM users WHERE id=?", (manager_id,)).fetchone()
+            if not m or m["role"] not in ("lab_manager", "admin"):
+                raise ApiError("Sorumlu olarak yalnızca Lab. Sorumlusu rolündeki bir kullanıcı seçilebilir.")
+        sets.append("manager_id=?"); params.append(manager_id); changes.append(f"sorumlu={manager_id}")
+    if "is_active" in data:
+        act = 1 if data.get("is_active") else 0
+        sets.append("is_active=?"); params.append(act); changes.append(f"aktif={act}")
+    if "faculty_id" in data:
+        sets.append("faculty_id=?"); params.append(_faculty_param(db, data.get("faculty_id"))); changes.append("fakülte")
+    if not sets:
+        raise ApiError("Güncellenecek alan yok.")
+    db.execute(f"UPDATE laboratories SET {', '.join(sets)} WHERE id=?", params + [lab_id])
     db.commit()
-    audit("LAB_GUNCELLENDI", f"{lab['code']}: sorumlu={manager_id}, aktif={is_active}, fakülte={faculty_id}")
+    audit("LAB_GUNCELLENDI", f"{lab['code']}: {', '.join(changes)}")
+    return jsonify(ok=True)
+
+
+@app.route("/api/labs/<int:lab_id>", methods=["DELETE"])
+@login_required("admin")
+def api_lab_delete(lab_id):
+    db = get_db()
+    lab = db.execute("SELECT * FROM laboratories WHERE id=?", (lab_id,)).fetchone()
+    if not lab:
+        raise ApiError("Laboratuvar bulunamadı.", 404)
+    n = db.execute("SELECT COUNT(*) FROM devices WHERE lab_id=?", (lab_id,)).fetchone()[0]
+    if n:
+        raise ApiError(f"Bu laboratuvarda {n} cihaz kayıtlı. Önce cihazları başka laboratuvara taşıyın ya da silin; "
+                       "geçmişi korumak için laboratuvarı pasif yapabilirsiniz.")
+    db.execute("DELETE FROM laboratories WHERE id=?", (lab_id,))
+    db.commit()
+    audit("LAB_SILINDI", f"{lab['code']} - {lab['name']}")
+    return jsonify(ok=True)
+
+
+@app.route("/api/faculties/<int:fac_id>", methods=["PATCH"])
+@login_required("admin")
+def api_faculty_update(fac_id):
+    data = body()
+    db = get_db()
+    f = db.execute("SELECT * FROM faculties WHERE id=?", (fac_id,)).fetchone()
+    if not f:
+        raise ApiError("Fakülte bulunamadı.", 404)
+    name = s(data, "name", True, 150, "Fakülte adı") if "name" in data else f["name"]
+    code = s(data, "code", True, 10, "Kısa kod").upper() if "code" in data else f["code"]
+    if db.execute("SELECT 1 FROM faculties WHERE (name=? OR code=?) AND id<>?", (name, code, fac_id)).fetchone():
+        raise ApiError("Bu ad veya kodla kayıtlı başka bir fakülte var.")
+    db.execute("UPDATE faculties SET name=?, code=? WHERE id=?", (name, code, fac_id))
+    db.commit()
+    audit("FAKULTE_GUNCELLENDI", f"{f['code']} -> {code} - {name}")
+    return jsonify(ok=True)
+
+
+@app.route("/api/faculties/<int:fac_id>", methods=["DELETE"])
+@login_required("admin")
+def api_faculty_delete(fac_id):
+    db = get_db()
+    f = db.execute("SELECT * FROM faculties WHERE id=?", (fac_id,)).fetchone()
+    if not f:
+        raise ApiError("Fakülte bulunamadı.", 404)
+    n = db.execute("SELECT COUNT(*) FROM laboratories WHERE faculty_id=?", (fac_id,)).fetchone()[0]
+    if n:
+        raise ApiError(f"Bu fakülteye bağlı {n} laboratuvar var. Önce laboratuvarları başka fakülteye atayın.")
+    db.execute("DELETE FROM faculties WHERE id=?", (fac_id,))
+    db.commit()
+    audit("FAKULTE_SILINDI", f"{f['code']} - {f['name']}")
     return jsonify(ok=True)
 
 
@@ -1236,6 +1314,17 @@ def api_device_update(device_id):
     if not can_manage_lab(u, dev["lab_id"]):
         raise ApiError("Bu cihazı yönetme yetkiniz yok.", 403)
     p = device_payload(data, partial=True)
+    if "lab_id" in data and data.get("lab_id") not in (None, ""):
+        try:
+            new_lab = int(data.get("lab_id"))
+        except (TypeError, ValueError):
+            raise ApiError("Geçersiz laboratuvar.")
+        if new_lab != dev["lab_id"]:
+            if not db.execute("SELECT 1 FROM laboratories WHERE id=?", (new_lab,)).fetchone():
+                raise ApiError("Laboratuvar bulunamadı.", 404)
+            if not can_manage_lab(u, new_lab):
+                raise ApiError("Cihazı yalnızca sorumlusu olduğunuz bir laboratuvara taşıyabilirsiniz.", 403)
+            p["lab_id"] = new_lab
     if not p:
         raise ApiError("Güncellenecek alan yok.")
     sets = ", ".join(f"{k}=?" for k in p)
@@ -1257,6 +1346,28 @@ def api_device_update(device_id):
                        "iletişime geçin.")
     else:
         audit("CIHAZ_GUNCELLENDI", f"{dev['name']}: {', '.join(p.keys())}")
+    return jsonify(ok=True)
+
+
+@app.route("/api/devices/<int:device_id>", methods=["DELETE"])
+@login_required("admin", "lab_manager")
+def api_device_delete(device_id):
+    u = current_user()
+    db = get_db()
+    dev = db.execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
+    if not dev:
+        raise ApiError("Cihaz bulunamadı.", 404)
+    if not can_manage_lab(u, dev["lab_id"]):
+        raise ApiError("Bu cihazı silme yetkiniz yok.", 403)
+    n = db.execute("SELECT COUNT(*) FROM reservations WHERE device_id=?", (device_id,)).fetchone()[0]
+    if n:
+        raise ApiError(f"Bu cihazın {n} randevu kaydı var; kullanım geçmişi raporlarda gerektiği için silinemez. "
+                       "Kullanımdan kaldırmak için durumunu 'Arızalı' ya da 'Bakımda' yapabilirsiniz.")
+    db.execute("DELETE FROM user_certificates WHERE device_id=?", (device_id,))
+    db.execute("DELETE FROM device_issues WHERE device_id=?", (device_id,))
+    db.execute("DELETE FROM devices WHERE id=?", (device_id,))
+    db.commit()
+    audit("CIHAZ_SILINDI", f"#{device_id} {dev['name']} ({dev['serial_no'] or '-'})")
     return jsonify(ok=True)
 
 
