@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+  LABNET - Merkezi Laboratuvar Yonetim Sistemi
+  Copyright (c) 2026 Nuh Bektas (Ziraat Muhendisi). Tum haklari saklidir.
+  5846 sayili FSEK kapsaminda korunur; izinsiz kopyalanamaz, cogaltilamaz, dagitilamaz.
+  Yapay zeka destekli gelistirme araclari kullanilarak hazirlanmistir.
+-->
 <html lang="tr">
 <head>
 <meta charset="utf-8">
@@ -294,6 +300,23 @@ tr.total td{font-weight:700;background:var(--teal-soft)}
 .timeline .blk.done{background:#e8ecf1;border-color:#8a9bb0;color:#3b4a5c}
 .timeline .now{position:absolute;top:0;bottom:0;width:2px;background:var(--bad)}
 
+/* Hakkinda / KVKK */
+.legal{max-width:860px;line-height:1.6}
+.legal section{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.legal section:last-child{border-bottom:0;margin-bottom:0}
+.legal h3{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--navy);font-size:16px}
+.legal h3 svg{color:var(--teal)}
+.legal h4{margin:14px 0 4px;font-size:13.5px;color:var(--navy)}
+.legal p{margin:6px 0}
+.legal ul{margin:6px 0;padding-left:20px}
+.legal li{margin:3px 0}
+.ph{background:#fff3cd;color:#7a4b00;border:1px dashed #e0b84d;border-radius:4px;padding:0 5px;font-size:12.5px;white-space:nowrap}
+.author-card{display:flex;gap:14px;align-items:center;background:var(--teal-soft);border:1px solid #bfe3de;border-radius:10px;padding:12px 16px;margin:12px 0}
+.author-card a{color:var(--navy)}
+.login-legal{margin-top:16px;font-size:11.5px;color:var(--muted);text-align:center;line-height:1.7}
+.login-legal a{color:var(--muted);cursor:pointer;text-decoration:underline}
+.side-copy{font-size:10.5px;color:#7d97b3;padding:2px 12px 0;line-height:1.4}
+
 /* ---------- Duyarli ---------- */
 @media (max-width:1100px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:1fr 1fr}}
 @media (max-width:860px){
@@ -344,6 +367,7 @@ tr.total td{font-weight:700;background:var(--teal-soft)}
           <button type="button" data-demo="ali.yilmaz@ogr.universite.edu.tr">Öğrenci<small>Ali Yılmaz</small></button>
         </div>
       </div>
+      <div class="login-legal">© 2026 Ziraat Mühendisi Nuh Bektaş · Tüm hakları saklıdır<br><a data-legal="all">Hakkında</a> · <a data-legal="kvkk">KVKK Aydınlatma Metni</a> · <a data-legal="all">Kullanım Koşulları</a></div>
     </form>
   </div>
 </div>
@@ -359,7 +383,9 @@ tr.total td{font-weight:700;background:var(--teal-soft)}
     <div class="side-foot">
       <a id="pwBtn"><span data-icon="key"></span>Şifre Değiştir</a>
       <a id="logoutBtn"><span data-icon="logout"></span>Çıkış Yap</a>
+      <a id="aboutBtn"><span data-icon="info"></span>Hakkında ve Yasal Bilgiler</a>
       <div class="net-note"><span data-icon="shield"></span>Kampüs ağı içi uygulama</div>
+      <div class="side-copy">© 2026 Nuh Bektaş · İzinsiz kopyalanamaz</div>
     </div>
   </aside>
   <div class="overlay" id="overlay"></div>
@@ -496,6 +522,7 @@ const ICONS = {
   lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   qr:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4"/>',
   play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+  phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
   stop:'<rect x="5" y="5" width="14" height="14" rx="2"/>',
   chart:'<path d="M3 3v18h18"/><path d="M7 16V10M12 16V6M17 16v-4"/>',
   repeat:'<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
@@ -564,7 +591,7 @@ function openModal(title, bodyHtml, footHtml, opts){
   hydrateIcons(root);
   return $('.modal',root);
 }
-function closeModal(){ $('#modalRoot').innerHTML=''; }
+function closeModal(force){ if(S && S.modalLock && !force) return; $('#modalRoot').innerHTML=''; }
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
 /* ---------- Durum rozetleri ---------- */
@@ -587,7 +614,8 @@ const PAGES={
   reports:{title:'Kullanım Raporları', nav:'Raporlar', icon:'chart', roles:['admin','lab_manager','advisor'], render:renderReports},
   labops:{title:'Lab. Sorumlusu İşlemleri', nav:'Lab. Sorumlusu İşlemleri', icon:'tool', roles:['lab_manager','admin'], render:renderLabOps},
   admin:{title:'Sistem Yönetimi', nav:'Sistem Yönetimi', icon:'settings', roles:['admin'], render:renderAdmin},
-  device:{title:'Cihaz', nav:null, icon:'micro', roles:null, hidden:true, render:renderDevicePage}
+  device:{title:'Cihaz', nav:null, icon:'micro', roles:null, hidden:true, render:renderDevicePage},
+  about:{title:'Hakkında ve Yasal Bilgiler', nav:null, icon:'info', roles:null, hidden:true, render:renderAbout}
 };
 
 function buildNav(){
@@ -635,7 +663,7 @@ async function refreshCounts(){
 
 /* ---------- Giris / cikis ---------- */
 function loadInfo(){ fetch('/api/info',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{ const t=d.institution_name||''; $('#instName').textContent=t; const sb=$('#sideInst'); if(sb) sb.textContent=t||'Merkezi Laboratuvar'; if(t) document.title='LABNET · '+t; }).catch(()=>{}); }
-function showLogin(){ loadInfo(); S.me=null; $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); closeModal(); setTimeout(()=>$('#lgEmail').focus(),50); }
+function showLogin(){ loadInfo(); S.modalLock=false; S.me=null; $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); closeModal(); setTimeout(()=>$('#lgEmail').focus(),50); }
 async function startApp(){
   loadInfo();
   Object.assign(S,{resTab:null, labTab:'devices', adminTab:'users', devices:[], labs:[], faculties:null, advisors:[], resList:[], counts:{}});
@@ -643,6 +671,7 @@ async function startApp(){
   renderHeader();
   await refreshCounts();
   go((location.hash||'').replace('#','')||'dashboard');
+  ensureKvkkAck();
 }
 $('#loginForm').addEventListener('submit', async e=>{
   e.preventDefault();
@@ -657,6 +686,8 @@ $('#loginForm').addEventListener('submit', async e=>{
 });
 $$('[data-demo]').forEach(b=>b.addEventListener('click',()=>{ $('#lgEmail').value=b.dataset.demo; $('#lgPass').value='1234'; $('#loginForm').requestSubmit(); }));
 $('#logoutBtn').addEventListener('click', async ()=>{ try{ await api('/api/logout',{method:'POST'}); }catch(e){} toast('Oturum kapatıldı.'); location.hash=''; showLogin(); });
+$$('[data-legal]').forEach(a=>a.addEventListener('click',()=>openLegal(a.dataset.legal)));
+$('#aboutBtn').addEventListener('click',()=>{ go('about'); closeSide(); });
 $('#menuBtn').addEventListener('click',()=>{ $('#side').classList.add('open'); $('#overlay').classList.add('open'); });
 $('#overlay').addEventListener('click', closeSide);
 $('#pwBtn').addEventListener('click',()=>{
@@ -678,7 +709,7 @@ window.addEventListener('hashchange',()=>{ if(S.me){ const p=location.hash.repla
    1. GOSTERGE PANELI
    ========================================================= */
 const ACTION_LABELS={GIRIS:'Giriş',CIKIS:'Çıkış',GIRIS_BASARISIZ:'Başarısız giriş',RANDEVU_OLUSTUR:'Randevu talebi',RANDEVU_IPTAL:'Randevu iptali',
-  RANDEVU_TAMAMLANDI:'Kullanım raporu',KULLANIM_BASLADI:'Kullanım başladı',GELINMEDI:'Gelinmedi',ARIZA_BILDIRIMI:'Arıza bildirimi',ARIZA_KAPATILDI:'Arıza kapatıldı',RAPOR_INDIRILDI:'Rapor indirildi',LAB_SILINDI:'Laboratuvar silindi',CIHAZ_SILINDI:'Cihaz silindi',FAKULTE_EKLENDI:'Fakülte eklendi',FAKULTE_GUNCELLENDI:'Fakülte güncellendi',FAKULTE_SILINDI:'Fakülte silindi',DANISMAN_ONAY:'Danışman onayı',DANISMAN_RET:'Danışman reddi',LAB_ONAY:'Lab. onayı',LAB_RET:'Lab. reddi',
+  RANDEVU_TAMAMLANDI:'Kullanım raporu',KULLANIM_BASLADI:'Kullanım başladı',GELINMEDI:'Gelinmedi',ARIZA_BILDIRIMI:'Arıza bildirimi',ARIZA_KAPATILDI:'Arıza kapatıldı',RAPOR_INDIRILDI:'Rapor indirildi',LAB_SILINDI:'Laboratuvar silindi',KVKK_ONAY:'KVKK onayı',KVKK_SURUM:'KVKK metni yenilendi',CIHAZ_SILINDI:'Cihaz silindi',FAKULTE_EKLENDI:'Fakülte eklendi',FAKULTE_GUNCELLENDI:'Fakülte güncellendi',FAKULTE_SILINDI:'Fakülte silindi',DANISMAN_ONAY:'Danışman onayı',DANISMAN_RET:'Danışman reddi',LAB_ONAY:'Lab. onayı',LAB_RET:'Lab. reddi',
   CIHAZ_DURUM:'Cihaz durumu',CIHAZ_EKLENDI:'Cihaz eklendi',CIHAZ_GUNCELLENDI:'Cihaz güncellendi',SERTIFIKA_TANIMLANDI:'Sertifika tanımlandı',
   SERTIFIKA_YENILENDI:'Sertifika yenilendi',SERTIFIKA_IPTAL:'Sertifika iptali',KULLANICI_EKLENDI:'Kullanıcı eklendi',KULLANICI_GUNCELLENDI:'Kullanıcı güncellendi',
   AYAR_GUNCELLENDI:'Ayar güncellendi',LDAP_TEST:'LDAP testi',SMTP_TEST:'SMTP testi',YEDEK_INDIRILDI:'Yedek indirildi',KURULUM:'Kurulum',
@@ -1286,10 +1317,10 @@ function openLabEdit(l, full, users, facs, after){
    5. SISTEM YONETIMI
    ========================================================= */
 async function renderAdmin(){
-  const tabs=[['users','Kullanıcı & İSG','users'],['labs','Laboratuvarlar','building'],['net','Ağ & LDAP','network'],['smtp','SMTP E-Posta','mail'],['db','Veritabanı & Denetim','db']];
+  const tabs=[['users','Kullanıcı & İSG','users'],['labs','Laboratuvarlar','building'],['net','Ağ & LDAP','network'],['smtp','SMTP E-Posta','mail'],['legal','Yasal Bilgiler','shield'],['db','Veritabanı & Denetim','db']];
   $('#content').innerHTML=(S.me.default_secret?secretBanner():'')+'<div class="tabs" id="admTabs">'+tabs.map(t=>'<button data-t="'+t[0]+'" class="'+(S.adminTab===t[0]?'active':'')+'">'+ic(t[2])+t[1]+'</button>').join('')+'</div><div id="admBody">'+loading()+'</div>';
   $$('#admTabs button').forEach(b=>b.addEventListener('click',()=>{ S.adminTab=b.dataset.t; renderAdmin(); }));
-  const fn={users:admUsers, labs:admLabs, net:admNet, smtp:admSmtp, db:admDb}[S.adminTab];
+  const fn={users:admUsers, labs:admLabs, net:admNet, smtp:admSmtp, legal:admLegal, db:admDb}[S.adminTab];
   await fn($('#admBody'));
 }
 const ROLE_OPTS=[['student','Öğrenci'],['advisor','Akademik Danışman'],['lab_manager','Lab. Sorumlusu'],['admin','Sistem Yöneticisi']];
@@ -1589,6 +1620,111 @@ async function renderReports(){
     $('#rpFrom').value=iso(map[0]); $('#rpTo').value=iso(map[1]); apply();
   }));
   $('#rpXlsx').addEventListener('click',()=>toast('Excel dosyası hazırlanıyor…'));
+}
+
+/* =========================================================
+   HAKKINDA, TELIF VE KVKK
+   ========================================================= */
+let LEGAL=null;
+async function loadLegal(){ LEGAL=await api('/api/legal'); return LEGAL; }
+function ph(v, label){ return v ? esc(v) : '<span class="ph">['+esc(label||'yönetici panelinden girilecek')+']</span>'; }
+function legalHtml(d, part){
+  const a=d.app, uni=ph(d.university_name,'Üniversite adı');
+  const tel='+90'+a.author_phone.replace(/\D/g,'').replace(/^0/,'');
+  const about=
+   '<section id="lg-about"><h3>'+ic('info')+'Program Hakkında</h3>'+
+    '<p><b>'+esc(a.name)+'</b><br><span class="muted">Sürüm '+esc(a.version)+' · '+uni+(d.institution_name?' · '+esc(d.institution_name):'')+'</span></p>'+
+    '<p>LABNET; laboratuvar cihazlarının randevu, onay, kullanım, sertifika, İSG ve arıza süreçlerini tek yerden yönetmek için geliştirilmiştir. Yalnızca kampüs ağı ve kurumsal VPN üzerinden çalışır, dış internete bağlanmaz.</p>'+
+    '<div class="author-card"><div class="avatar" style="width:46px;height:46px;font-size:15px;background:var(--teal)">NB</div><div><div class="muted small">Hazırlayan</div><b style="font-size:15px;color:var(--navy)">'+esc(a.author_title)+' '+esc(a.author)+'</b>'+
+     '<div class="small" style="margin-top:4px">'+ic('mail')+' <a href="mailto:'+esc(a.author_email)+'">'+esc(a.author_email)+'</a> &nbsp; '+ic('phone')+' <a href="tel:'+esc(tel)+'">'+esc(a.author_phone)+'</a></div></div></div>'+
+    '<p class="small muted">Program, yapay zekâ destekli yazılım geliştirme araçları kullanılarak hazırlanmıştır. Tasarım, iş kuralları, test ve son kontrol hazırlayan tarafından yapılmıştır.</p></section>';
+  const copy=
+   '<section id="lg-copy"><h3>'+ic('lock')+'Telif Hakkı ve Kullanım Koşulları</h3>'+
+    '<p><b>© '+esc(a.year)+' '+esc(a.author)+'. Tüm hakları saklıdır.</b></p><ul>'+
+    '<li>Bu yazılımın kaynak kodu, arayüz tasarımı ve belgeleri 5846 sayılı Fikir ve Sanat Eserleri Kanunu kapsamında korunmaktadır.</li>'+
+    '<li>Yazılım, hak sahibinin yazılı izni olmadan kısmen ya da tamamen kopyalanamaz, çoğaltılamaz, değiştirilemez, başka kurumlara dağıtılamaz, satılamaz veya kiralanamaz.</li>'+
+    '<li>Kullanım hakkı yalnızca '+uni+' bünyesindeki laboratuvarlarla sınırlıdır. Başka birimlerde ya da kurumlarda kullanım için hak sahibinden izin alınmalıdır.</li>'+
+    '<li>İzinsiz kullanım halinde yasal haklar saklıdır.</li>'+
+    '<li>Yazılım "olduğu gibi" sunulmaktadır. Cihaz kullanımında laboratuvar talimatları, İSG kuralları ve laboratuvar sorumlusunun kararları esastır.</li></ul>'+
+    '<p class="small">İzin ve lisans talepleri: <a href="mailto:'+esc(a.author_email)+'">'+esc(a.author_email)+'</a> · '+esc(a.author_phone)+'</p></section>';
+  const kvkk=
+   '<section id="lg-kvkk"><h3>'+ic('shield')+'KVKK Aydınlatma Metni</h3>'+
+    '<p class="small muted">6698 sayılı Kişisel Verilerin Korunması Kanunu md. 10 uyarınca · Metin sürümü '+esc(d.kvkk_version||'1')+'</p>'+
+    '<h4>Veri sorumlusu</h4><p>'+uni+' Rektörlüğü'+(d.university_address?', '+esc(d.university_address):' <span class="ph">[adres]</span>')+'<br>Başvuru: '+ph(d.kvkk_contact,'KVKK başvuru e-postası / KEP adresi')+'</p>'+
+    '<h4>İşlenen kişisel veriler</h4><ul><li><b>Kimlik ve iletişim:</b> ad soyad, kurumsal e-posta, bölüm, rol</li><li><b>Eğitim ve yetki:</b> İSG eğitimi geçerlilik tarihi, cihaz kullanım sertifikaları</li><li><b>İşlem bilgileri:</b> randevu, proje başlığı, kullanım amacı, kullanım süresi, kullanım raporu, arıza bildirimi</li><li><b>İşlem güvenliği:</b> IP adresi, giriş kayıtları, sistemde yapılan işlemlerin denetim kayıtları</li></ul>'+
+    '<h4>İşleme amaçları</h4><p>Laboratuvar cihazlarının planlı ve güvenli kullanımı; randevu ve onay süreçlerinin yürütülmesi; İSG mevzuatı gereği eğitim şartının denetlenmesi; cihaz bakım ve arıza takibi; kullanım istatistiklerinin ve raporlarının hazırlanması; bilgi güvenliğinin sağlanması ve yetkisiz erişimin önlenmesi.</p>'+
+    '<h4>Hukuki sebepler (KVKK md. 5/2)</h4><p>(a) Kanunlarda açıkça öngörülmesi (6331 sayılı İş Sağlığı ve Güvenliği Kanunu, 2547 sayılı Yükseköğretim Kanunu); (ç) veri sorumlusunun hukuki yükümlülüğünü yerine getirmesi; (e) bir hakkın tesisi, kullanılması veya korunması; (f) temel hak ve özgürlüklere zarar vermemek kaydıyla veri sorumlusunun meşru menfaati.</p>'+
+    '<h4>Toplama yöntemi</h4><p>Kullanıcının sisteme girdiği bilgiler ve sistem kayıtları, elektronik ortamda. Kurum dizini (LDAP) etkinse ad ve bölüm bilgisi oradan alınır.</p>'+
+    '<h4>Aktarım</h4><p>Veriler kurum dışına aktarılmaz. Sistemin içinde yalnızca ilgili akademik danışman, laboratuvar sorumlusu ve sistem yöneticisi görür. E-posta bildirimleri kurumun kendi e-posta sunucusu üzerinden gönderilir. Kanunen yetkili kamu kurumlarının talebi saklıdır.</p>'+
+    '<h4>Saklama süresi</h4><p>Randevu ve kullanım kayıtları '+ph(d.retention_reservations,'süre')+', denetim kayıtları '+ph(d.retention_logs,'süre')+' saklanır. Süre sonunda silinir veya anonim hale getirilir.</p>'+
+    '<h4>Çerezler</h4><p>Yalnızca oturumun açık kalması için zorunlu bir oturum çerezi kullanılır. Reklam, izleme ya da analiz çerezi kullanılmaz.</p>'+
+    '<h4>Haklarınız (KVKK md. 11)</h4><p>Kişisel verinizin işlenip işlenmediğini öğrenme, bilgi talep etme, işleme amacını öğrenme, aktarıldığı kişileri bilme, düzeltilmesini ya da silinmesini isteme, itiraz etme ve zararın giderilmesini talep etme haklarına sahipsiniz. Başvurularınızı veri sorumlusuna yazılı olarak ya da '+ph(d.kvkk_contact,'KEP / kayıtlı e-posta')+' üzerinden iletebilirsiniz.</p></section>';
+  const contact=
+   '<section id="lg-contact"><h3>'+ic('mail')+'İletişim</h3><ul>'+
+    '<li>Teknik destek ve öneriler: <a href="mailto:'+esc(a.author_email)+'">'+esc(a.author_email)+'</a> · <a href="tel:'+esc(tel)+'">'+esc(a.author_phone)+'</a></li>'+
+    '<li>Laboratuvar işleyişi: ilgili laboratuvar sorumlusu</li></ul></section>';
+  if(part==='kvkk') return '<div class="legal">'+kvkk+'</div>';
+  return '<div class="legal">'+about+copy+kvkk+contact+'</div>';
+}
+async function openLegal(part){
+  try{ await loadLegal(); }catch(e){ toast(e.message,'err'); return; }
+  const m=openModal(part==='kvkk'?'KVKK Aydınlatma Metni':'Hakkında ve Yasal Bilgiler', legalHtml(LEGAL, part), '<button class="btn btn-primary" data-close>Kapat</button>', {wide:true});
+  $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
+}
+async function renderAbout(){
+  await loadLegal();
+  const missing=['university_name','kvkk_contact','retention_reservations','retention_logs'].filter(k=>!LEGAL[k]);
+  $('#content').innerHTML=(S.me.role==='admin'&&missing.length?'<div class="banner banner-warn">'+ic('alert')+'<div>Sarı ile işaretli yerler henüz doldurulmadı. <a href="#" id="goLegalSet">Sistem Yönetimi &gt; Yasal Bilgiler</a> sekmesinden girebilirsiniz.</div></div>':'')+
+    '<div class="card"><div class="card-b" style="padding:22px 26px">'+legalHtml(LEGAL)+'</div></div>';
+  const g=$('#goLegalSet'); if(g) g.addEventListener('click',e=>{ e.preventDefault(); S.adminTab='legal'; go('admin'); });
+}
+async function ensureKvkkAck(){
+  if(!S.me || !S.me.kvkk_ack_needed) return;
+  try{ await loadLegal(); }catch(e){ return; }
+  S.modalLock=true;
+  const root=$('#modalRoot');
+  root.innerHTML='<div class="modal-bg"><div class="modal" style="max-width:820px"><div class="modal-h"><h3>'+ic('shield')+' Kişisel Verilerin Korunması – Aydınlatma Metni</h3></div>'+
+    '<div class="modal-b" style="max-height:60vh;overflow:auto">'+legalHtml(LEGAL,'kvkk')+'</div>'+
+    '<div class="modal-f" style="justify-content:space-between;flex-wrap:wrap"><label class="check" style="margin:0"><input type="checkbox" id="kvkkChk"> Aydınlatma metnini okudum ve bilgilendirildim.</label>'+
+    '<div style="display:flex;gap:8px"><button class="btn btn-ghost" id="kvkkOut">Çıkış Yap</button><button class="btn btn-primary" id="kvkkOk" disabled>Onaylıyorum</button></div></div></div></div>';
+  hydrateIcons(root);
+  $('#kvkkChk').addEventListener('change',e=>{ $('#kvkkOk').disabled=!e.target.checked; });
+  $('#kvkkOut').addEventListener('click',async()=>{ S.modalLock=false; try{ await api('/api/logout',{method:'POST'}); }catch(e){} showLogin(); });
+  $('#kvkkOk').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    await api('/api/me/kvkk-ack',{method:'POST', body:{}});
+    S.me.kvkk_ack_needed=false; S.modalLock=false; closeModal();
+    toast('Teşekkürler, onayınız kaydedildi.');
+  }));
+}
+
+/* ----- Yonetim > Yasal Bilgiler ----- */
+async function admLegal(box){
+  const [st, users]=await Promise.all([api('/api/admin/settings'), api('/api/users')]);
+  const acked=users.filter(u=>u.kvkk_ack_at).length;
+  box.innerHTML='<div class="grid g2" style="align-items:start">'+
+   '<div class="card"><div class="card-h">'+ic('shield')+'<h3>KVKK ve Kurum Bilgileri</h3></div><div class="card-b">'+
+    '<div class="small muted" style="margin-bottom:12px">Bu bilgiler Hakkında sayfasında ve KVKK Aydınlatma Metni\'nde kullanılır. Boş kalan alanlar metinde sarı uyarı olarak görünür. Metni üniversitenizin KVKK birimine onaylatmanız önerilir.</div>'+
+    '<label class="f"><span>Üniversite adı (veri sorumlusu)</span><input class="inp" id="lgUni" maxlength="200" value="'+esc(st.university_name)+'" placeholder="Örn. … Üniversitesi"></label>'+
+    '<label class="f"><span>Rektörlük adresi</span><textarea class="inp" id="lgAddr" maxlength="400" rows="2">'+esc(st.university_address)+'</textarea></label>'+
+    '<label class="f"><span>KVKK başvuru adresi (e-posta / KEP)</span><input class="inp" id="lgKvkk" maxlength="200" value="'+esc(st.kvkk_contact)+'" placeholder="kvkk@… / …@hs01.kep.tr"></label>'+
+    '<div class="row"><label class="f"><span>Randevu kayıtları saklama süresi</span><input class="inp" id="lgRet1" maxlength="200" value="'+esc(st.retention_reservations)+'" placeholder="Örn. 5 yıl"></label>'+
+    '<label class="f"><span>Denetim kayıtları saklama süresi</span><input class="inp" id="lgRet2" maxlength="200" value="'+esc(st.retention_logs)+'" placeholder="Örn. 2 yıl"></label></div>'+
+    '<button class="btn btn-primary" id="lgSave">Kaydet</button></div></div>'+
+   '<div class="card"><div class="card-h">'+ic('check2')+'<h3>İlk Giriş Onayı</h3></div><div class="card-b">'+
+    '<label class="check"><input type="checkbox" id="lgReq"'+(st.kvkk_consent_required==='1'?' checked':'')+'> Kullanıcılar ilk girişte aydınlatma metnini okuduğunu onaylasın</label>'+
+    '<div class="kv" style="margin:6px 0 14px"><span>Metin sürümü</span><div>'+esc(st.kvkk_version||'1')+'</div><span>Onaylayan kullanıcı</span><div>'+acked+' / '+users.length+'</div></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="lgReqSave">Kaydet</button><button class="btn btn-ghost" id="lgRenew">'+ic('repeat')+'Metin değişti: herkesten yeniden onay iste</button><button class="btn btn-ghost" id="lgPrev">'+ic('file')+'Sayfayı önizle</button></div>'+
+    '<div class="small muted" style="margin-top:10px">Onay tarihi her kullanıcı için kaydedilir ve denetim kayıtlarına yazılır.</div></div></div></div>';
+  $('#lgSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    await api('/api/admin/settings',{method:'PUT', body:{university_name:$('#lgUni').value, university_address:$('#lgAddr').value, kvkk_contact:$('#lgKvkk').value, retention_reservations:$('#lgRet1').value, retention_logs:$('#lgRet2').value}});
+    toast('Yasal bilgiler kaydedildi.');
+  }));
+  $('#lgReqSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{ await api('/api/admin/settings',{method:'PUT', body:{kvkk_consent_required:$('#lgReq').checked}}); toast('İlk giriş onayı '+($('#lgReq').checked?'açık':'kapalı')+'.'); }));
+  $('#lgRenew').addEventListener('click',e=>{
+    if(!confirm('Metin sürümü artırılacak ve bütün kullanıcılar bir sonraki girişlerinde metni yeniden onaylayacak. Devam edilsin mi?')) return;
+    act(e.currentTarget, async ()=>{ const r=await api('/api/admin/kvkk-renew',{method:'POST', body:{}}); toast('Metin sürümü '+r.version+' oldu; herkesten yeniden onay istenecek.'); admLegal(box); });
+  });
+  $('#lgPrev').addEventListener('click',()=>go('about'));
 }
 
 /* ---------- Baslangic ---------- */

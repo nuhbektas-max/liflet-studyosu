@@ -2,6 +2,11 @@
 """
 LABNET - Universite Merkezi Laboratuvar Yonetim Yazilimi
 
+Copyright (c) 2026 Nuh Bektas (Ziraat Muhendisi). Tum haklari saklidir.
+Bu yazilim 5846 sayili Fikir ve Sanat Eserleri Kanunu kapsaminda korunmaktadir;
+hak sahibinin yazili izni olmadan kopyalanamaz, cogaltilamaz, degistirilemez ve dagitilamaz.
+Yapay zeka destekli gelistirme araclari kullanilarak hazirlanmistir.
+
 Kapali kampus aginda (VLAN / Eduroam / VPN) calisacak sekilde tasarlanmistir.
 Dis internete bagimlilik yoktur: arayuz tek bir HTML dosyasidir, harici CDN,
 font veya ikon kutuphanesi kullanilmaz.
@@ -59,6 +64,18 @@ if os.environ.get("LABNET_BEHIND_PROXY") == "1":
     from werkzeug.middleware.proxy_fix import ProxyFix
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
+APP_INFO = {
+    "name": "LABNET – Merkezi Laboratuvar Yönetim Sistemi",
+    "version": "1.0",
+    "year": "2026",
+    "author": "Nuh Bektaş",
+    "author_title": "Ziraat Mühendisi",
+    "author_email": "nuh.bektas@tarimorman.gov.tr",
+    "author_phone": "0544 524 50 62",
+}
+LEGAL_KEYS = ("university_name", "university_address", "kvkk_contact", "retention_reservations",
+              "retention_logs", "kvkk_consent_required", "kvkk_version")
+
 ROLES = ("admin", "advisor", "lab_manager", "student")
 ROLE_LABELS = {
     "admin": "Sistem Yöneticisi",
@@ -96,6 +113,13 @@ DEFAULT_SETTINGS = {
     "noshow_minutes": "15",
     "checkin_early_minutes": "15",
     "institution_name": "Fen-Edebiyat ve Ziraat Fakülteleri Araştırma Laboratuvarları",
+    "university_name": "",
+    "university_address": "",
+    "kvkk_contact": "",
+    "retention_reservations": "",
+    "retention_logs": "",
+    "kvkk_consent_required": "1",
+    "kvkk_version": "1",
 }
 SECRET_SETTINGS = ("ldap_bind_pass", "smtp_pass")
 
@@ -144,7 +168,9 @@ CREATE TABLE IF NOT EXISTS users (
     role TEXT NOT NULL CHECK (role IN ('admin','advisor','lab_manager','student')),
     department TEXT,
     isg_valid_until TEXT,
-    is_active INTEGER NOT NULL DEFAULT 1
+    is_active INTEGER NOT NULL DEFAULT 1,
+    kvkk_ack_version TEXT,
+    kvkk_ack_at TEXT
 );
 CREATE TABLE IF NOT EXISTS faculties (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -236,6 +262,7 @@ CREATE INDEX IF NOT EXISTS idx_cert_user_device ON user_certificates(user_id, de
 # Eski surumden kalan veritabanlarina sonradan eklenen sutunlar.
 MIGRATIONS = {
     "laboratories": [("faculty_id", "INTEGER REFERENCES faculties(id)")],
+    "users": [("kvkk_ack_version", "TEXT"), ("kvkk_ack_at", "TEXT")],
     "devices": [("min_minutes", "INTEGER NOT NULL DEFAULT 30"), ("max_advance_days", "INTEGER NOT NULL DEFAULT 60"),
                 ("weekly_max_hours", "INTEGER NOT NULL DEFAULT 0")],
     "reservations": [("started_at", "TEXT"), ("ended_at", "TEXT"), ("no_show", "INTEGER NOT NULL DEFAULT 0"),
@@ -818,6 +845,7 @@ def user_public(u):
         "id": u["id"], "full_name": u["full_name"], "email": u["email"], "role": u["role"],
         "role_label": ROLE_LABELS.get(u["role"], u["role"]), "department": u["department"],
         "isg_valid_until": isg, "isg_valid": bool(isg and isg >= today), "is_active": bool(u["is_active"]),
+        "kvkk_ack_at": u["kvkk_ack_at"] if "kvkk_ack_at" in u.keys() else None,
     }
 
 
@@ -892,6 +920,10 @@ def api_me():
         return jsonify(authenticated=False)
     out = user_public(u)
     out["authenticated"] = True
+    st = get_settings()
+    out["kvkk_ack_needed"] = st.get("kvkk_consent_required") == "1" and \
+        (u["kvkk_ack_version"] or "") != (st.get("kvkk_version") or "1")
+    out["kvkk_ack_at"] = u["kvkk_ack_at"]
     if u["role"] == "admin":
         out["default_secret"] = SECRET_KEY == DEFAULT_SECRET
     out["managed_lab_ids"] = [r["id"] for r in get_db().execute(
@@ -1064,7 +1096,42 @@ def api_faculty_create():
 @app.route("/api/info")
 def api_info():
     """Giris ekrani icin kurum adi (oturum gerektirmez)."""
-    return jsonify(institution_name=get_settings().get("institution_name") or "")
+    return jsonify(institution_name=get_settings().get("institution_name") or "", app=APP_INFO)
+
+
+@app.route("/api/legal")
+def api_legal():
+    """Hakkinda / KVKK sayfasi icin bilgiler (oturum gerektirmez; giris ekranindan da acilir)."""
+    st = get_settings()
+    return jsonify(app=APP_INFO, institution_name=st.get("institution_name") or "",
+                   **{k: st.get(k) or "" for k in LEGAL_KEYS})
+
+
+@app.route("/api/me/kvkk-ack", methods=["POST"])
+@login_required()
+def api_kvkk_ack():
+    u = current_user()
+    ver = get_settings().get("kvkk_version") or "1"
+    db = get_db()
+    db.execute("UPDATE users SET kvkk_ack_version=?, kvkk_ack_at=? WHERE id=?", (ver, now_str(), u["id"]))
+    db.commit()
+    audit("KVKK_ONAY", f"Aydınlatma metni (sürüm {ver}) okundu olarak onaylandı.")
+    return jsonify(ok=True)
+
+
+@app.route("/api/admin/kvkk-renew", methods=["POST"])
+@login_required("admin")
+def api_kvkk_renew():
+    """Metin degistiginde surumu arttirir; herkes bir sonraki girisinde yeniden onaylar."""
+    db = get_db()
+    cur = int(get_settings(fresh=True).get("kvkk_version") or "1")
+    db.execute("INSERT INTO settings (key,value) VALUES ('kvkk_version',?) "
+               "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(cur + 1),))
+    db.commit()
+    get_settings(fresh=True)
+    audit("KVKK_SURUM", f"Aydınlatma metni sürümü {cur} -> {cur + 1}; kullanıcılardan yeniden onay istenecek.")
+    acked = db.execute("SELECT COUNT(*) FROM users WHERE kvkk_ack_version=?", (str(cur),)).fetchone()[0]
+    return jsonify(ok=True, version=cur + 1, previous_acks=acked)
 
 
 @app.route("/api/labs", methods=["POST"])
@@ -2363,6 +2430,14 @@ def api_settings_put():
                 raise ApiError("Port 1-65535 arasında bir sayı olmalıdır.")
         if key == "allowed_cidrs":
             val = _validate_cidrs(val)
+        if key == "kvkk_consent_required":
+            val = "1" if data.get(key) in (True, 1, "1", "true", "on") else "0"
+        if key == "kvkk_version":
+            continue  # yalnizca /api/admin/kvkk-renew ile degisir
+        if key in ("university_name", "kvkk_contact", "retention_reservations", "retention_logs") and len(val) > 200:
+            raise ApiError("Yasal bilgi alanları en fazla 200 karakter olabilir.")
+        if key == "university_address" and len(val) > 400:
+            raise ApiError("Adres en fazla 400 karakter olabilir.")
         if key == "institution_name" and len(val) > 150:
             raise ApiError("Kurum adı en fazla 150 karakter olabilir.")
         if key == "smtp_from" and val and not EMAIL_RE.match(val):
