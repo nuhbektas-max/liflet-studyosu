@@ -175,6 +175,10 @@ table.t tr:hover td{background:#fafcfd}
 .dev-foot{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--line);background:#fafcfd;border-radius:0 0 var(--radius) var(--radius)}
 .dev-foot .btn{margin-left:auto}
 .cert-grid{grid-template-columns:minmax(280px,360px) minmax(0,1fr);align-items:start}
+.fac-head{display:flex;align-items:center;gap:8px;margin:4px 0 8px;font-size:13px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.6px}
+.fac-head .tag{text-transform:none;letter-spacing:0;font-weight:600}
+.fac-pill{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;background:#e7edf5;color:var(--navy);margin-right:4px;vertical-align:1px}
+.fac-pill.zf{background:#e9f4e4;color:#3d6b22}
 .lab-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:18px}
 .lab-chip{padding:12px 14px;display:flex;gap:10px;align-items:flex-start;cursor:pointer;transition:border-color .15s}
 .lab-chip:hover,.lab-chip.sel{border-color:var(--teal)}
@@ -315,6 +319,7 @@ tr.total td{font-weight:700;background:var(--teal-soft)}
         <div class="brand-logo" data-icon="flask"></div>
         <div><b>LABNET</b><small>Merkezi Laboratuvar Yönetim Sistemi</small></div>
       </div>
+      <div id="instName" style="font-weight:600;color:#9fe0d6;font-size:14px"></div>
       <h2>Araştırma altyapısına güvenli ve planlı erişim</h2>
       <p>Cihaz rezervasyonu, iki aşamalı onay, kullanım sertifikası ve İSG takibi tek panelde.</p>
       <ul class="login-feat">
@@ -348,7 +353,7 @@ tr.total td{font-weight:700;background:var(--teal-soft)}
   <aside class="side" id="side">
     <div class="brand">
       <div class="brand-logo" data-icon="flask"></div>
-      <div><b>LABNET</b><small>Merkezi Laboratuvar</small></div>
+      <div><b>LABNET</b><small id="sideInst">Merkezi Laboratuvar</small></div>
     </div>
     <nav class="nav" id="nav"></nav>
     <div class="side-foot">
@@ -573,7 +578,7 @@ function deviceIcon(name){ const n=(name||'').toLowerCase(); if(n.includes('mikr
 
 /* ---------- Durum ---------- */
 const S={ me:null, page:'dashboard', counts:{}, devices:[], labs:[], advisors:[], resTab:null, labTab:'devices', adminTab:'users',
-  cal:{mode:'week', start:null, device:null}, catalog:{q:'', lab:'', status:'', sort:'auth'}, deviceId:null };
+  cal:{mode:'week', start:null, device:null}, catalog:{q:'', lab:'', status:'', sort:'auth', fac:''}, deviceId:null };
 
 const PAGES={
   dashboard:{title:'Gösterge Paneli', nav:'Gösterge Paneli', icon:'dash', roles:null, render:renderDashboard},
@@ -629,9 +634,11 @@ async function refreshCounts(){
 }
 
 /* ---------- Giris / cikis ---------- */
-function showLogin(){ S.me=null; $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); closeModal(); setTimeout(()=>$('#lgEmail').focus(),50); }
+function loadInfo(){ fetch('/api/info',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{ const t=d.institution_name||''; $('#instName').textContent=t; const sb=$('#sideInst'); if(sb) sb.textContent=t||'Merkezi Laboratuvar'; if(t) document.title='LABNET · '+t; }).catch(()=>{}); }
+function showLogin(){ loadInfo(); S.me=null; $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); closeModal(); setTimeout(()=>$('#lgEmail').focus(),50); }
 async function startApp(){
-  Object.assign(S,{resTab:null, labTab:'devices', adminTab:'users', devices:[], labs:[], advisors:[], resList:[], counts:{}});
+  loadInfo();
+  Object.assign(S,{resTab:null, labTab:'devices', adminTab:'users', devices:[], labs:[], faculties:null, advisors:[], resList:[], counts:{}});
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderHeader();
   await refreshCounts();
@@ -683,10 +690,12 @@ async function renderDashboard(){
   const role=S.me.role;
   const pendLabel = role==='student'?'Onay Sürecindeki Taleplerim':'Onayımı Bekleyen Talepler';
   const maxH=Math.max(1,...d.top_devices.map(x=>x.hours));
+  let facs=[]; try{ facs=await api('/api/faculties'); }catch(e){ facs=[]; }
+  const facHtml = facs.length ? '<div class="grid g2" style="margin-bottom:16px">'+facs.map(f=>'<div class="card stat" style="cursor:pointer" data-fac="'+f.id+'"><div class="ic '+(f.code==='ZF'?'ic-teal':'ic-navy')+'">'+ic('building')+'</div><div style="flex:1"><div class="v" style="font-size:18px">'+esc(f.name)+'</div><div class="l">'+f.lab_count+' laboratuvar · '+f.device_count+' cihaz</div></div>'+ic('chev_r')+'</div>').join('')+'</div>' : '';
   let warn='';
   if(!S.me.isg_valid) warn='<div class="banner banner-warn">'+ic('hard')+'<div><b>İSG eğitiminiz geçerli değil.</b> İSG gerektiren cihazlar için randevu alamazsınız. İş Sağlığı ve Güvenliği birimiyle iletişime geçin.</div></div>';
   if(role==='admin' && S.me.default_secret) warn+=secretBanner();
-  $('#content').innerHTML = warn+
+  $('#content').innerHTML = warn+facHtml+
   '<div class="grid g4" style="margin-bottom:16px">'+
     stat('micro','ic-navy',d.total_devices,'Toplam Cihaz',d.active_devices+' cihaz kullanıma açık')+
     stat('calendar','ic-teal',d.active_reservations,'Aktif Randevular','Bugün ve sonrası onaylı')+
@@ -705,6 +714,7 @@ async function renderDashboard(){
     (d.recent.length? d.recent.map(l=>'<div class="list-item"><span class="badge b-navy">'+esc(ACTION_LABELS[l.action]||l.action)+'</span><div style="flex:1;min-width:0" class="small">'+esc(l.detail)+(role==='admin'?' <span class="muted">· '+esc(l.user_email)+'</span>':'')+'</div><span class="small muted" style="white-space:nowrap">'+fmtDT(l.created_at)+'</span></div>').join('') : empty('Kayıt yok.'))+
   '</div></div>';
   $$('[data-goto]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.goto)));
+  $$('[data-fac]').forEach(b=>b.addEventListener('click',()=>{ S.catalog.fac=b.dataset.fac; S.catalog.lab=''; go('catalog'); }));
 }
 function stat(icon,cls,v,l,sub){ return '<div class="card stat"><div class="ic '+cls+'">'+ic(icon)+'</div><div><div class="v">'+esc(v)+'</div><div class="l">'+esc(l)+'</div><div class="small muted">'+esc(sub)+'</div></div></div>'; }
 function secretBanner(){ return '<div class="banner banner-warn">'+ic('alert')+'<div><b>Güvenlik uyarısı:</b> Varsayılan oturum anahtarı kullanılıyor. Sunucuyu başlatmadan önce <code>LABNET_SECRET</code> ortam değişkenine uzun ve rastgele bir değer verin.</div></div>'; }
@@ -713,25 +723,36 @@ function secretBanner(){ return '<div class="banner banner-warn">'+ic('alert')+'
    2. CIHAZ KATALOGU
    ========================================================= */
 async function loadBase(){
-  const [devices, labs] = await Promise.all([api('/api/devices'), api('/api/labs')]);
-  S.devices=devices; S.labs=labs;
+  const [devices, labs, faculties] = await Promise.all([api('/api/devices'), api('/api/labs'), api('/api/faculties')]);
+  S.devices=devices; S.labs=labs; S.faculties=faculties;
 }
+function facPill(code, name){ if(!code) return ''; return '<span class="fac-pill'+(code==='ZF'?' zf':'')+'" title="'+esc(name||'')+'">'+esc(code)+'</span>'; }
+const DEPARTMENTS={
+  'Fen-Edebiyat Fakültesi':['Biyoloji','Kimya','Fizik','Matematik','Moleküler Biyoloji ve Genetik','İstatistik','Coğrafya'],
+  'Ziraat Fakültesi':['Zootekni','Toprak Bilimi ve Bitki Besleme','Bahçe Bitkileri','Tarla Bitkileri','Bitki Koruma','Tarım Makineleri ve Teknolojileri Mühendisliği','Tarımsal Biyoteknoloji','Tarım Ekonomisi','Peyzaj Mimarlığı','Süt Teknolojisi','Su Ürünleri']
+};
 async function renderCatalog(){
   await loadBase();
   const c=S.catalog;
   $('#content').innerHTML=
-    '<div class="lab-strip" id="labStrip"></div>'+
+    '<div id="labStrip"></div>'+
     '<div class="toolbar">'+
       '<div class="search">'+ic('search')+'<input class="inp" id="cq" placeholder="Cihaz, marka/model veya seri no ara…" value="'+esc(c.q)+'"></div>'+
-      '<select class="inp" id="clab"><option value="">Tüm laboratuvarlar</option>'+S.labs.filter(l=>l.is_active||S.me.role==='admin').map(l=>'<option value="'+l.id+'"'+(String(l.id)===c.lab?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select>'+
+      '<select class="inp" id="cfac" style="max-width:220px"><option value="">Tüm fakülteler</option>'+(S.faculties||[]).map(f=>'<option value="'+f.id+'"'+(String(f.id)===c.fac?' selected':'')+'>'+esc(f.name)+'</option>').join('')+'</select>'+
+      '<select class="inp" id="clab"></select>'+
       '<select class="inp" id="cst"><option value="">Tüm durumlar</option><option value="active"'+(c.status==='active'?' selected':'')+'>Aktif</option><option value="maintenance"'+(c.status==='maintenance'?' selected':'')+'>Bakımda</option><option value="broken"'+(c.status==='broken'?' selected':'')+'>Arızalı</option><option value="mine"'+(c.status==='mine'?' selected':'')+'>Yalnızca yetkili olduklarım</option></select>'+
       '<select class="inp" id="csort" style="max-width:220px" title="Sıralama"><option value="auth"'+(c.sort==='auth'?' selected':'')+'>Önce yetkili olduklarım</option><option value="name"'+(c.sort==='name'?' selected':'')+'>Ada göre</option><option value="lab"'+(c.sort==='lab'?' selected':'')+'>Laboratuvara göre</option></select>'+
     '</div><div id="devList"></div>';
   const draw=()=>{
-    $('#labStrip').innerHTML=S.labs.filter(l=>l.is_active).map(l=>'<div class="card lab-chip'+(String(l.id)===c.lab?' sel':'')+'" data-lab="'+l.id+'"><div class="dev-ic" style="width:36px;height:36px">'+ic('building')+'</div><div><b>'+esc(l.name)+'</b><div class="small muted">'+esc(l.code)+' · '+esc(l.building_room||'-')+'</div><div class="small muted">Sorumlu: '+esc(l.manager_name||'-')+' · '+l.device_count+' cihaz</div></div></div>').join('');
+    const labsVis=S.labs.filter(l=>(l.is_active||S.me.role==='admin') && (!c.fac||String(l.faculty_id)===c.fac));
+    if(c.lab && !labsVis.some(l=>String(l.id)===c.lab)) c.lab='';
+    $('#clab').innerHTML='<option value="">Tüm laboratuvarlar</option>'+labsVis.map(l=>'<option value="'+l.id+'"'+(String(l.id)===c.lab?' selected':'')+'>'+esc(l.name)+'</option>').join('');
+    const groups={}; labsVis.filter(l=>l.is_active).forEach(l=>{ const k=l.faculty_name||'Fakülte atanmamış'; (groups[k]=groups[k]||[]).push(l); });
+    $('#labStrip').innerHTML=Object.entries(groups).map(([fac,ls])=>'<div class="fac-head">'+ic('building')+esc(fac)+'<span class="tag">'+ls.length+' laboratuvar · '+ls.reduce((a,l)=>a+l.device_count,0)+' cihaz</span></div><div class="lab-strip">'+
+      ls.map(l=>'<div class="card lab-chip'+(String(l.id)===c.lab?' sel':'')+'" data-lab="'+l.id+'"><div class="dev-ic" style="width:36px;height:36px">'+ic('flask')+'</div><div><b>'+esc(l.name)+'</b><div class="small muted">'+esc(l.code)+' · '+esc(l.building_room||'-')+'</div><div class="small muted">Sorumlu: '+esc(l.manager_name||'-')+' · '+l.device_count+' cihaz</div></div></div>').join('')+'</div>').join('');
     $$('#labStrip [data-lab]').forEach(el=>el.addEventListener('click',()=>{ c.lab = c.lab===el.dataset.lab?'':el.dataset.lab; $('#clab').value=c.lab; draw(); }));
     const q=c.q.toLocaleLowerCase('tr');
-    const list=S.devices.filter(d=>(!c.lab||String(d.lab_id)===c.lab) && (!c.status || (c.status==='mine'? d.authorized : d.status===c.status)) &&
+    const list=S.devices.filter(d=>(!c.fac||String(d.faculty_id)===c.fac) && (!c.lab||String(d.lab_id)===c.lab) && (!c.status || (c.status==='mine'? d.authorized : d.status===c.status)) &&
       (!q || [d.name,d.brand_model,d.serial_no,d.lab_name].join(' ').toLocaleLowerCase('tr').includes(q)));
     const cmp=(a,b)=>a.localeCompare(b,'tr');
     const rank=d=>(d.authorized?0:2)+(d.status==='active'?0:1);
@@ -742,6 +763,7 @@ async function renderCatalog(){
   };
   $('#csort').addEventListener('change',e=>{ c.sort=e.target.value; draw(); });
   $('#cq').addEventListener('input',e=>{ c.q=e.target.value; draw(); });
+  $('#cfac').addEventListener('change',e=>{ c.fac=e.target.value; draw(); });
   $('#clab').addEventListener('change',e=>{ c.lab=e.target.value; draw(); });
   $('#cst').addEventListener('change',e=>{ c.status=e.target.value; draw(); });
   draw();
@@ -759,7 +781,7 @@ function devCard(d){
   if(d.serial_no) tags.push('<span class="tag">SN: '+esc(d.serial_no)+'</span>');
   const canBook=d.status==='active';
   const live = d.in_use? '<span class="badge b-info" title="Kullanımda">'+ic('play')+'Kullanımda · '+esc(d.in_use_until)+'\'e kadar</span>' : '';
-  return '<div class="card dev'+(d.authorized?'':' dim')+'"><div class="dev-top"><div class="dev-ic">'+ic(deviceIcon(d.name))+'</div><div style="flex:1;min-width:0"><h4><a data-dev="'+d.id+'" title="Cihaz sayfasını aç">'+esc(d.name)+'</a></h4><div class="meta">'+esc(d.brand_model||'')+'</div><div class="meta">'+ic('building')+' '+esc(d.lab_name)+' · '+esc(d.building_room||'')+'</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">'+devBadge(d.status)+live+'</div></div>'+
+  return '<div class="card dev'+(d.authorized?'':' dim')+'"><div class="dev-top"><div class="dev-ic">'+ic(deviceIcon(d.name))+'</div><div style="flex:1;min-width:0"><h4><a data-dev="'+d.id+'" title="Cihaz sayfasını aç">'+esc(d.name)+'</a></h4><div class="meta">'+esc(d.brand_model||'')+'</div><div class="meta">'+facPill(d.faculty_code,d.faculty_name)+esc(d.lab_name)+' · '+esc(d.building_room||'')+'</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">'+devBadge(d.status)+live+'</div></div>'+
     '<div class="dev-tags">'+tags.join('')+'</div>'+
     '<div class="dev-notes">'+esc(d.usage_notes||'')+'</div>'+
     '<div class="dev-foot">'+auth+'<button class="btn btn-primary btn-sm" data-book="'+d.id+'"'+(canBook?'':' disabled title="Cihaz şu anda kullanıma kapalı"')+'>'+ic('calendar')+'Randevu Al</button></div></div>';
@@ -1271,7 +1293,7 @@ function openUser(u){
     '<div class="row"><label class="f"><span>Ad Soyad *</span><input class="inp" id="ufName" maxlength="150" value="'+esc(u.full_name||'')+'"></label>'+
     '<label class="f"><span>E-posta *</span><input class="inp" id="ufEmail" type="email" maxlength="200" value="'+esc(u.email||'')+'"'+(isNew?'':' disabled')+'></label></div>'+
     '<div class="row"><label class="f"><span>Rol *</span>'+roleSelect('ufRole',u.role)+'</label>'+
-    '<label class="f"><span>Bölüm / Birim</span><input class="inp" id="ufDept" maxlength="150" value="'+esc(u.department||'')+'"></label></div>'+
+    '<label class="f"><span>Bölüm / Birim</span><input class="inp" id="ufDept" maxlength="150" list="deptList" placeholder="Fakülte - Bölüm" value="'+esc(u.department||'')+'"><datalist id="deptList">'+Object.entries(DEPARTMENTS).map(([f,ds])=>ds.map(dp=>'<option value="'+esc(f+' - '+dp)+'">').join('')).join('')+'</datalist></label></div>'+
     '<div class="row"><label class="f"><span>İSG geçerlilik tarihi</span><input class="inp" type="date" id="ufIsg" value="'+esc(u.isg_valid_until||'')+'"></label>'+
     '<label class="f"><span>'+(isNew?'Şifre *':'Yeni şifre (değişmeyecekse boş bırakın)')+'</span><input class="inp" type="password" id="ufPass" autocomplete="new-password"></label></div>'+
     (isNew?'':'<label class="check"><input type="checkbox" id="ufAct"'+(u.is_active?' checked':'')+'> Hesap aktif</label>'),
@@ -1287,28 +1309,38 @@ function openUser(u){
 }
 
 async function admLabs(box){
-  const [labs, users, st]=await Promise.all([api('/api/labs'), api('/api/users'), api('/api/admin/settings')]);
+  const [labs, users, st, facs]=await Promise.all([api('/api/labs'), api('/api/users'), api('/api/admin/settings'), api('/api/faculties')]);
+  const facSel=(attr,val)=>'<select class="inp" '+attr+'><option value="">— Seçiniz —</option>'+facs.map(f=>'<option value="'+f.id+'"'+(f.id===val?' selected':'')+'>'+esc(f.name)+'</option>').join('')+'</select>';
   const mgrs=users.filter(u=>u.role==='lab_manager'||u.role==='admin');
   const mgrSel=(id,val)=>'<select class="inp" '+id+'><option value="">— Atanmamış —</option>'+mgrs.map(u=>'<option value="'+u.id+'"'+(u.id===val?' selected':'')+'>'+esc(u.full_name)+'</option>').join('')+'</select>';
-  box.innerHTML='<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('clock')+'<h3>Kullanımı Başlatma ve Gelinmeyen Randevu Kuralları</h3></div><div class="card-b">'+
+  box.innerHTML='<div class="grid g2" style="margin-bottom:16px;align-items:start">'+
+    '<div class="card"><div class="card-h">'+ic('building')+'<h3>Kurum ve Fakülteler</h3></div><div class="card-b">'+
+      '<label class="f"><span>Kurum / birim adı (giriş ekranında ve menüde görünür)</span><div style="display:flex;gap:8px"><input class="inp" id="instIn" maxlength="150" value="'+esc(st.institution_name||'')+'"><button class="btn btn-primary" id="instSave">Kaydet</button></div></label>'+
+      '<table class="t" style="margin-bottom:12px"><thead><tr><th>Kod</th><th>Fakülte</th><th class="num">Lab.</th><th class="num">Cihaz</th></tr></thead><tbody>'+facs.map(f=>'<tr><td>'+facPill(f.code,f.name)+'</td><td>'+esc(f.name)+'</td><td class="num">'+f.lab_count+'</td><td class="num">'+f.device_count+'</td></tr>').join('')+'</tbody></table>'+
+      '<div class="row" style="align-items:flex-end"><label class="f"><span>Yeni fakülte / birim adı</span><input class="inp" id="nfName" maxlength="150" placeholder="Örn. Veteriner Fakültesi"></label><label class="f" style="flex:0 1 100px"><span>Kod</span><input class="inp" id="nfCode" maxlength="10" placeholder="VF"></label><div style="flex:0 0 auto;margin-bottom:12px"><button class="btn btn-ghost" id="nfSave">'+ic('plus')+'Ekle</button></div></div>'+
+    '</div></div>'+
+    '<div class="card"><div class="card-h">'+ic('clock')+'<h3>Kullanımı Başlatma ve Gelinmeyen Randevu Kuralları</h3></div><div class="card-b">'+
     '<div class="row" style="align-items:flex-end"><label class="f"><span>Kullanım en erken kaç dakika önce başlatılabilir</span><input class="inp" type="number" id="ruEarly" min="0" max="240" value="'+esc(st.checkin_early_minutes)+'"></label>'+
     '<label class="f"><span>Başlatılmazsa kaç dakika sonra "gelinmedi" sayılsın (0 = kapalı)</span><input class="inp" type="number" id="ruNoshow" min="0" max="240" value="'+esc(st.noshow_minutes)+'"></label>'+
     '<div style="flex:0 0 auto;margin-bottom:12px"><button class="btn btn-primary" id="ruSave">Kaydet</button></div></div>'+
-    '<div class="small muted">Gelinmedi denetimi açıkken onaylı randevunun sahibi, cihazın başında "Kullanımı Başlat" demezse randevu belirtilen süre sonunda kapanır ve cihaz başkalarına açılır. Erken bitirilen kullanımda kalan süre de otomatik serbest kalır. Cihaz bazındaki kurallar (en kısa süre, kaç gün ileriye, haftalık sınır) Lab. Sorumlusu İşlemleri &gt; Cihaz Durumları &gt; Düzenle ekranındadır.</div></div></div>'+
-    '<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('building')+'<h3>Laboratuvarlar</h3></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Kod</th><th>Laboratuvar</th><th>Konum</th><th>Cihaz</th><th>Sorumlu</th><th>Durum</th></tr></thead><tbody>'+
-    labs.map(l=>'<tr><td><b>'+esc(l.code)+'</b></td><td>'+esc(l.name)+'<div class="small muted">'+esc(l.description||'')+'</div></td><td>'+esc(l.building_room||'-')+'</td><td>'+l.device_count+'</td><td>'+mgrSel('data-lmgr="'+l.id+'" style="min-width:190px"',l.manager_id)+'</td><td><label class="check" style="margin:0"><input type="checkbox" data-lact="'+l.id+'"'+(l.is_active?' checked':'')+'> Aktif</label></td></tr>').join('')+'</tbody></table></div></div>'+
+    '<div class="small muted">Gelinmedi denetimi açıkken onaylı randevunun sahibi, cihazın başında "Kullanımı Başlat" demezse randevu belirtilen süre sonunda kapanır ve cihaz başkalarına açılır. Erken bitirilen kullanımda kalan süre de otomatik serbest kalır. Cihaz bazındaki kurallar (en kısa süre, kaç gün ileriye, haftalık sınır) Lab. Sorumlusu İşlemleri &gt; Cihaz Durumları &gt; Düzenle ekranındadır.</div></div></div></div>'+
+    '<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('flask')+'<h3>Laboratuvarlar</h3></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Kod</th><th>Fakülte</th><th>Laboratuvar</th><th>Konum</th><th>Cihaz</th><th>Sorumlu</th><th>Durum</th></tr></thead><tbody>'+
+    labs.map(l=>'<tr><td><b>'+esc(l.code)+'</b></td><td>'+facSel('data-lfac="'+l.id+'" style="min-width:170px"',l.faculty_id)+'</td><td>'+esc(l.name)+'<div class="small muted">'+esc(l.description||'')+'</div></td><td>'+esc(l.building_room||'-')+'</td><td>'+l.device_count+'</td><td>'+mgrSel('data-lmgr="'+l.id+'" style="min-width:190px"',l.manager_id)+'</td><td><label class="check" style="margin:0"><input type="checkbox" data-lact="'+l.id+'"'+(l.is_active?' checked':'')+'> Aktif</label></td></tr>').join('')+'</tbody></table></div></div>'+
     '<div class="card" style="max-width:760px"><div class="card-h">'+ic('plus')+'<h3>Yeni Laboratuvar</h3></div><div class="card-b">'+
     '<div class="row"><label class="f"><span>Ad *</span><input class="inp" id="nlName" maxlength="150"></label><label class="f" style="flex:0 1 140px"><span>Kod *</span><input class="inp" id="nlCode" maxlength="20"></label></div>'+
-    '<div class="row"><label class="f"><span>Bina / Oda</span><input class="inp" id="nlRoom" maxlength="150"></label><label class="f"><span>Sorumlu</span>'+mgrSel('id="nlMgr"',null)+'</label></div>'+
+    '<div class="row"><label class="f"><span>Fakülte *</span>'+facSel('id="nlFac"',null)+'</label><label class="f"><span>Bina / Oda</span><input class="inp" id="nlRoom" maxlength="150"></label><label class="f"><span>Sorumlu</span>'+mgrSel('id="nlMgr"',null)+'</label></div>'+
     '<label class="f"><span>Açıklama</span><textarea class="inp" id="nlDesc" maxlength="1000"></textarea></label><button class="btn btn-primary" id="nlSave">'+ic('plus')+'Laboratuvarı Ekle</button></div></div>';
   $$('[data-lmgr]').forEach(s=>s.addEventListener('change',()=>act(s, async ()=>{ await api('/api/labs/'+s.dataset.lmgr,{method:'PATCH', body:{manager_id:s.value?+s.value:null}}); toast('Laboratuvar sorumlusu güncellendi.'); })));
   $$('[data-lact]').forEach(c=>c.addEventListener('change',()=>act(c, async ()=>{ const sel=$('[data-lmgr="'+c.dataset.lact+'"]'); await api('/api/labs/'+c.dataset.lact,{method:'PATCH', body:{is_active:c.checked, manager_id:sel.value?+sel.value:null}}); toast('Laboratuvar '+(c.checked?'aktif':'pasif')+' yapıldı.'); })));
+  $$('[data-lfac]').forEach(sel=>sel.addEventListener('change',()=>act(sel, async ()=>{ await api('/api/labs/'+sel.dataset.lfac,{method:'PATCH', body:{faculty_id:sel.value?+sel.value:null}}); toast('Laboratuvarın fakültesi güncellendi.'); })));
+  $('#instSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{ await api('/api/admin/settings',{method:'PUT', body:{institution_name:$('#instIn').value}}); loadInfo(); toast('Kurum adı kaydedildi.'); }));
+  $('#nfSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{ await api('/api/faculties',{method:'POST', body:{name:$('#nfName').value, code:$('#nfCode').value}}); toast('Fakülte eklendi.'); renderAdmin(); }));
   $('#ruSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
     await api('/api/admin/settings',{method:'PUT', body:{checkin_early_minutes:$('#ruEarly').value, noshow_minutes:$('#ruNoshow').value}});
     toast('Kullanım kuralları kaydedildi.');
   }));
   $('#nlSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
-    await api('/api/labs',{method:'POST', body:{name:$('#nlName').value, code:$('#nlCode').value, building_room:$('#nlRoom').value, manager_id:$('#nlMgr').value?+$('#nlMgr').value:null, description:$('#nlDesc').value}});
+    await api('/api/labs',{method:'POST', body:{name:$('#nlName').value, code:$('#nlCode').value, building_room:$('#nlRoom').value, faculty_id:$('#nlFac').value?+$('#nlFac').value:null, manager_id:$('#nlMgr').value?+$('#nlMgr').value:null, description:$('#nlDesc').value}});
     toast('Laboratuvar eklendi.'); renderAdmin();
   }));
 }
@@ -1456,23 +1488,24 @@ async function renderDevicePage(){
 /* =========================================================
    RAPORLAR
    ========================================================= */
-S.rep={from:null,to:null,group:'device',lab:''};
+S.rep={from:null,to:null,group:'faculty',lab:'',fac:''};
 async function renderReports(){
   const r=S.rep, t=new Date();
   if(!r.from){ r.from=iso(new Date(t.getFullYear(),t.getMonth(),1)); r.to=iso(t); }
-  if(!S.labs.length) await loadBase();
-  const labs=S.labs.filter(l=>S.me.role==='admin'||l.manager_id===S.me.id);
-  const qs='from='+r.from+'&to='+r.to+'&group='+r.group+(r.lab?'&lab_id='+r.lab:'');
+  if(!S.labs.length||!S.faculties) await loadBase();
+  const labs=S.labs.filter(l=>(S.me.role==='admin'||l.manager_id===S.me.id) && (!r.fac||String(l.faculty_id)===r.fac));
+  const qs='from='+r.from+'&to='+r.to+'&group='+r.group+(r.lab?'&lab_id='+r.lab:'')+(r.fac?'&faculty_id='+r.fac:'');
   const data=await api('/api/reports/usage?'+qs);
   const T=data.totals, nsRate=(T.completed+T.no_show)?Math.round(1000*T.no_show/(T.completed+T.no_show))/10:0;
   const maxH=Math.max(1,...data.summary.map(a=>a.hours));
-  const groups=[['device','Cihaz'],['lab','Laboratuvar'],['advisor','Danışman'],['user','Kullanıcı'],['month','Ay']];
+  const groups=[['faculty','Fakülte'],['device','Cihaz'],['lab','Laboratuvar'],['advisor','Danışman'],['user','Kullanıcı'],['month','Ay']];
   const nf=v=>(+v).toLocaleString('tr-TR',{maximumFractionDigits:2});
   $('#content').innerHTML=
    '<div class="card" style="margin-bottom:16px"><div class="card-b"><div class="row" style="align-items:flex-end">'+
     '<label class="f" style="margin:0"><span>Başlangıç</span><input class="inp" type="date" id="rpFrom" value="'+r.from+'"></label>'+
     '<label class="f" style="margin:0"><span>Bitiş</span><input class="inp" type="date" id="rpTo" value="'+r.to+'"></label>'+
     '<label class="f" style="margin:0"><span>Gruplama</span><select class="inp" id="rpGroup">'+groups.map(g=>'<option value="'+g[0]+'"'+(g[0]===r.group?' selected':'')+'>'+g[1]+'</option>').join('')+'</select></label>'+
+    '<label class="f" style="margin:0"><span>Fakülte</span><select class="inp" id="rpFac"><option value="">Tümü</option>'+(S.faculties||[]).map(f=>'<option value="'+f.id+'"'+(String(f.id)===r.fac?' selected':'')+'>'+esc(f.name)+'</option>').join('')+'</select></label>'+
     (S.me.role!=='advisor'?'<label class="f" style="margin:0"><span>Laboratuvar</span><select class="inp" id="rpLab"><option value="">Tümü</option>'+labs.map(l=>'<option value="'+l.id+'"'+(String(l.id)===r.lab?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select></label>':'')+
     '<div style="flex:0 0 auto;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="rpGo">Uygula</button><a class="btn btn-navy" id="rpXlsx" href="/api/reports/usage.xlsx?'+qs+'">'+ic('download')+'Excel\'e Aktar</a></div></div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px"><span class="small muted" style="align-self:center">Hızlı seçim:</span>'+
@@ -1497,9 +1530,9 @@ async function renderReports(){
     (data.details.length?'<table class="t"><thead><tr><th>No</th><th>Tarih</th><th>Saat</th><th>Cihaz</th><th>Kullanıcı</th><th>Proje</th><th>Durum</th><th class="num">Saat</th></tr></thead><tbody>'+
       data.details.slice(0,200).map(x=>'<tr><td>#'+x.id+'</td><td style="white-space:nowrap">'+fmtDate(x.date)+'</td><td style="white-space:nowrap">'+esc(x.start_time)+'–'+esc(x.end_time)+'</td><td>'+esc(x.device_name)+'</td><td>'+esc(x.user_name)+'</td><td class="small">'+esc(x.project_title)+'</td><td class="small">'+esc(x.status)+'</td><td class="num">'+(x.actual_hours!=null?nf(x.actual_hours):'')+'</td></tr>').join('')+'</tbody></table>' : empty('Kayıt yok.'))+
    '</div></div>';
-  const apply=()=>{ r.from=$('#rpFrom').value||r.from; r.to=$('#rpTo').value||r.to; r.group=$('#rpGroup').value; r.lab=$('#rpLab')?$('#rpLab').value:''; renderReports().catch(e=>toast(e.message,'err')); };
+  const apply=()=>{ r.from=$('#rpFrom').value||r.from; r.to=$('#rpTo').value||r.to; r.group=$('#rpGroup').value; r.lab=$('#rpLab')?$('#rpLab').value:''; r.fac=$('#rpFac').value; renderReports().catch(e=>toast(e.message,'err')); };
   $('#rpGo').addEventListener('click',apply);
-  ['rpGroup','rpLab'].forEach(id=>{ if($('#'+id)) $('#'+id).addEventListener('change',apply); });
+  ['rpGroup','rpLab','rpFac'].forEach(id=>{ if($('#'+id)) $('#'+id).addEventListener('change',apply); });
   $$('[data-range]').forEach(b=>b.addEventListener('click',()=>{
     const n=new Date(), y=n.getFullYear(), mo=n.getMonth();
     const map={month:[new Date(y,mo,1),n], prev:[new Date(y,mo-1,1),new Date(y,mo,0)], q:[new Date(y,mo-2,1),n], year:[new Date(y,0,1),n]}[b.dataset.range];

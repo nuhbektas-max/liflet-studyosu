@@ -95,6 +95,7 @@ DEFAULT_SETTINGS = {
     "smtp_from": "",
     "noshow_minutes": "15",
     "checkin_early_minutes": "15",
+    "institution_name": "Fen-Edebiyat ve Ziraat Fakülteleri Araştırma Laboratuvarları",
 }
 SECRET_SETTINGS = ("ldap_bind_pass", "smtp_pass")
 
@@ -145,6 +146,11 @@ CREATE TABLE IF NOT EXISTS users (
     isg_valid_until TEXT,
     is_active INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS faculties (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    code TEXT NOT NULL UNIQUE
+);
 CREATE TABLE IF NOT EXISTS laboratories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -152,7 +158,8 @@ CREATE TABLE IF NOT EXISTS laboratories (
     building_room TEXT,
     manager_id INTEGER REFERENCES users(id),
     description TEXT,
-    is_active INTEGER NOT NULL DEFAULT 1
+    is_active INTEGER NOT NULL DEFAULT 1,
+    faculty_id INTEGER REFERENCES faculties(id)
 );
 CREATE TABLE IF NOT EXISTS devices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -228,6 +235,7 @@ CREATE INDEX IF NOT EXISTS idx_cert_user_device ON user_certificates(user_id, de
 
 # Eski surumden kalan veritabanlarina sonradan eklenen sutunlar.
 MIGRATIONS = {
+    "laboratories": [("faculty_id", "INTEGER REFERENCES faculties(id)")],
     "devices": [("min_minutes", "INTEGER NOT NULL DEFAULT 30"), ("max_advance_days", "INTEGER NOT NULL DEFAULT 60"),
                 ("weekly_max_hours", "INTEGER NOT NULL DEFAULT 0")],
     "reservations": [("started_at", "TEXT"), ("ended_at", "TEXT"), ("no_show", "INTEGER NOT NULL DEFAULT 0"),
@@ -255,15 +263,21 @@ def seed_data(conn):
         return (today + timedelta(days=days)).isoformat()
 
     pw = generate_password_hash("1234")
+    fac_ids = {}
+    for code, name in (("FEF", "Fen-Edebiyat Fakültesi"), ("ZF", "Ziraat Fakültesi")):
+        fac_ids[code] = conn.execute("INSERT INTO faculties (name, code) VALUES (?,?)", (name, code)).lastrowid
+
     users = [
         ("Sistem Yöneticisi", "yonetici@universite.edu.tr", "admin", "Bilgi İşlem Daire Başkanlığı", d(365)),
-        ("Prof. Dr. Ahmet Kaya", "danisman@universite.edu.tr", "advisor", "Malzeme Bilimi ve Mühendisliği", d(300)),
-        ("Öğr. Gör. Selin Demir", "sorumlu@universite.edu.tr", "lab_manager", "Merkezi Araştırma Laboratuvarı", d(240)),
-        ("Ali Yılmaz", "ali.yilmaz@ogr.universite.edu.tr", "student", "Malzeme Bilimi ve Mühendisliği (Y. Lisans)", d(180)),
-        ("Doç. Dr. Elif Şahin", "elif.sahin@universite.edu.tr", "advisor", "Moleküler Biyoloji ve Genetik", d(200)),
-        ("Dr. Murat Öztürk", "murat.ozturk@universite.edu.tr", "lab_manager", "Fizik", d(150)),
-        ("Zeynep Arslan", "zeynep.arslan@ogr.universite.edu.tr", "student", "Moleküler Biyoloji ve Genetik (Doktora)", d(-20)),
-        ("Can Aydın", "can.aydin@ogr.universite.edu.tr", "student", "Fizik (Y. Lisans)", d(90)),
+        ("Prof. Dr. Ahmet Kaya", "danisman@universite.edu.tr", "advisor", "Ziraat Fakültesi - Zootekni Bölümü", d(300)),
+        ("Öğr. Gör. Selin Demir", "sorumlu@universite.edu.tr", "lab_manager", "Ziraat Fakültesi - Merkez Laboratuvarı", d(240)),
+        ("Ali Yılmaz", "ali.yilmaz@ogr.universite.edu.tr", "student", "Ziraat Fakültesi - Zootekni (Yüksek Lisans)", d(180)),
+        ("Doç. Dr. Elif Şahin", "elif.sahin@universite.edu.tr", "advisor", "Fen-Edebiyat Fakültesi - Biyoloji Bölümü", d(200)),
+        ("Dr. Murat Öztürk", "murat.ozturk@universite.edu.tr", "lab_manager", "Fen-Edebiyat Fakültesi - Kimya Bölümü", d(150)),
+        ("Zeynep Arslan", "zeynep.arslan@ogr.universite.edu.tr", "student", "Fen-Edebiyat Fakültesi - Biyoloji (Doktora)", d(-20)),
+        ("Can Aydın", "can.aydin@ogr.universite.edu.tr", "student", "Fen-Edebiyat Fakültesi - Kimya (Yüksek Lisans)", d(90)),
+        ("Doç. Dr. Hasan Çelik", "hasan.celik@universite.edu.tr", "advisor", "Ziraat Fakültesi - Toprak Bilimi ve Bitki Besleme Bölümü", d(210)),
+        ("Ayşe Koç", "ayse.koc@ogr.universite.edu.tr", "student", "Ziraat Fakültesi - Toprak Bilimi (Yüksek Lisans)", d(120)),
     ]
     ids = {}
     for full_name, email, role, dept, isg in users:
@@ -275,64 +289,82 @@ def seed_data(conn):
     selin = ids["sorumlu@universite.edu.tr"]
     murat = ids["murat.ozturk@universite.edu.tr"]
     labs = [
-        ("Malzeme Karakterizasyon Lab.", "MKL", "Merkezi Araştırma Binası, B-104", selin,
-         "Malzemelerin yüzey, yapı ve kimyasal karakterizasyonu için elektron mikroskobu ve spektroskopi altyapısı."),
-        ("Moleküler Biyoloji ve Genetik Lab.", "MBG", "Merkezi Araştırma Binası, C-212", selin,
-         "Gen ifadesi analizi, kromatografi ve doku mühendisliği çalışmaları için BSL-2 laboratuvarı."),
-        ("Yüksek Başarımlı Hesaplama ve Optik Lab.", "YBO", "Mühendislik Fakültesi, A-015", murat,
-         "GPU hesaplama düğümleri ve ileri optik görüntüleme sistemleri."),
+        ("ZF", "Yem Analiz ve Hayvan Besleme Lab.", "ZF-YEM", "Ziraat Fakültesi, Zootekni Binası Z-12", selin,
+         "Kaba ve kesif yemlerde besin madde analizleri (ham protein, ham selüloz, NDF/ADF, NIR ile hızlı analiz)."),
+        ("ZF", "Toprak ve Bitki Besleme Analiz Lab.", "ZF-TOP", "Ziraat Fakültesi, Toprak Bölümü T-04", selin,
+         "Toprak, bitki ve su örneklerinde makro-mikro element ve organik madde analizleri."),
+        ("ZF", "Bitki Doku Kültürü ve Büyütme Lab.", "ZF-BIT", "Ziraat Fakültesi, Bahçe Bitkileri B-21", selin,
+         "Steril doku kültürü çalışmaları ve kontrollü koşullarda bitki yetiştirme (iklim kabinleri)."),
+        ("FEF", "Enstrümantal Analiz Lab. (Kimya)", "FEF-KIM", "Fen-Edebiyat Fakültesi, Kimya Bölümü K-110", murat,
+         "Kromatografik ve spektroskopik analizler; organik bileşik tanımlama ve miktar tayini."),
+        ("FEF", "Moleküler Biyoloji ve Genetik Lab.", "FEF-BIY", "Fen-Edebiyat Fakültesi, Biyoloji Bölümü B-205", murat,
+         "Gen ifadesi, PCR tabanlı tanı ve floresan görüntüleme çalışmaları için BSL-2 laboratuvarı."),
+        ("FEF", "Malzeme Karakterizasyon Lab. (Fizik)", "FEF-FIZ", "Fen-Edebiyat Fakültesi, Fizik Bölümü F-015", murat,
+         "Elektron mikroskobu ve X-ışını kırınımı ile yüzey ve kristal yapı analizi."),
     ]
     lab_ids = {}
-    for name, code, room, mgr, desc in labs:
+    for fac, name, code, room, mgr, desc in labs:
         cur = conn.execute(
-            "INSERT INTO laboratories (name,code,building_room,manager_id,description,is_active) VALUES (?,?,?,?,?,1)",
-            (name, code, room, mgr, desc))
+            "INSERT INTO laboratories (name,code,building_room,manager_id,description,is_active,faculty_id) "
+            "VALUES (?,?,?,?,?,1,?)", (name, code, room, mgr, desc, fac_ids[fac]))
         lab_ids[code] = cur.lastrowid
 
+    # (lab, ad, marka/model, seri, durum, sertifika, ISG, gunluk saat, en kisa dk, kac gun ileri, haftalik saat, not)
     devices = [
-        ("MKL", "Taramalı Elektron Mikroskobu (SEM)", "Zeiss EVO 15 + EDS", "SEM-2021-0042", "active", 1, 1, 4,
-         "İletken olmayan numuneler altın/karbon kaplanmalıdır. Vakum döngüsü sırasında kapak açılmaz."),
-        ("MKL", "FTIR Spektrometresi", "Thermo Scientific Nicolet iS50", "FTIR-2019-0117", "active", 0, 1, 6,
-         "ATR kristali her ölçümden sonra izopropil alkolle temizlenir."),
-        ("MBG", "Real-Time PCR Cihazı", "Bio-Rad CFX96 Touch", "PCR-2022-0310", "active", 1, 1, 8,
+        ("ZF-YEM", "NIR Yem Analiz Cihazı", "FOSS DS2500", "NIR-2022-0101", "active", 1, 1, 4, 30, 30, 8,
+         "Örnekler 1 mm elekten öğütülmüş olmalıdır. Kalibrasyon modeli seçimi için sorumluya danışın."),
+        ("ZF-YEM", "Kjeldahl Azot Analiz Sistemi", "Gerhardt Vapodest 50s + Turbotherm", "KJE-2019-0044", "active", 1, 1, 8, 60, 45, 16,
+         "Derişik sülfürik asit kullanılır; çeker ocak, yüz siperi ve asit eldiveni zorunludur."),
+        ("ZF-YEM", "Lif (NDF/ADF) Analizörü", "ANKOM A2000", "ANK-2021-0015", "active", 0, 1, 6, 30, 60, 0,
+         "Filtre torbaları kullanıcıya aittir. Deterjan çözeltileri günlük hazırlanır."),
+        ("ZF-TOP", "ICP-OES Spektrometresi", "Agilent 5110", "ICP-2023-0007", "active", 1, 1, 6, 60, 30, 12,
+         "Örnekler mikrodalga yakma ile çözeltiye alınmış olmalıdır. Argon tüketimi kullanıcı projesine yazılır."),
+        ("ZF-TOP", "Elementel Analizör (CHNS)", "Thermo FlashSmart", "CHN-2020-0031", "active", 1, 0, 6, 30, 30, 0,
+         "Kalay kapsüller sorumludan alınır; tartım 0,01 mg hassasiyetle yapılır."),
+        ("ZF-BIT", "Bitki Büyütme (İklim) Kabini", "Panasonic MLR-352H", "IKL-2021-0052", "active", 0, 0, 24, 60, 60, 0,
+         "Işık-sıcaklık programı sorumlu tarafından girilir. Kabin içine toprak dökülmemelidir."),
+        ("ZF-BIT", "Laminar Akış Kabini", "Nüve LN 120", "LAM-2018-0009", "active", 0, 1, 4, 30, 14, 0,
+         "Kullanım öncesi 15 dakika UV ve %70 etanol ile yüzey temizliği yapılır."),
+        ("FEF-KIM", "GC-MS Sistemi", "Shimadzu GCMS-QP2020 NX", "GCM-2022-0018", "active", 1, 1, 8, 60, 30, 16,
+         "Kolon değişimi yalnızca sorumlu tarafından yapılır. Örnekler filtrelenmiş olmalıdır."),
+        ("FEF-KIM", "HPLC Sistemi", "Agilent 1260 Infinity II", "HPLC-2020-0076", "active", 0, 1, 6, 60, 60, 0,
+         "Mobil faz filtrelenmiş ve degaze edilmiş olmalıdır."),
+        ("FEF-KIM", "UV-Vis Spektrofotometre", "Shimadzu UV-1900i", "UVV-2019-0120", "active", 0, 0, 4, 15, 30, 0,
+         "Kuvars küvetler kullanım sonrası saf su ile durulanıp kurutulur."),
+        ("FEF-BIY", "Real-Time PCR Cihazı", "Bio-Rad CFX96 Touch", "PCR-2022-0310", "active", 1, 1, 8, 60, 45, 16,
          "Plaka hazırlığı laminar kabinde yapılır. Kit ve sarf malzemesi kullanıcıya aittir."),
-        ("MBG", "HPLC Sistemi", "Agilent 1260 Infinity II", "HPLC-2020-0076", "active", 0, 1, 6,
-         "Mobil faz filtrelenmiş ve degaze edilmiş olmalıdır. Kolon değişimi sorumlu onayı ile yapılır."),
-        ("MBG", "3D Biyoyazıcı", "CELLINK BIO X6", "BIO-2023-0008", "active", 1, 1, 4,
-         "Steril çalışma zorunludur. Biyomürekkep kartuşları kullanım sonrası atık prosedürüne göre imha edilir."),
-        ("YBO", "GPU Hesaplama Düğümü", "NVIDIA DGX Station A100", "HPC-2022-0201", "active", 0, 0, 8,
-         "Uzaktan erişim kampüs VPN üzerinden yapılır. Uzun işler için kuyruk sistemi kullanılır."),
-        ("YBO", "Konfokal Lazer Taramalı Mikroskop", "Leica Stellaris 5", "KON-2021-0055", "maintenance", 0, 1, 4,
-         "Lazer güvenliği eğitimi önerilir. Yıllık kalibrasyon bakımı sürüyor."),
+        ("FEF-BIY", "Floresan Mikroskop", "Zeiss Axio Imager 2", "FLM-2021-0063", "active", 1, 0, 4, 30, 30, 8,
+         "Cıva lambası açıldıktan sonra en az 30 dakika kapatılmaz."),
+        ("FEF-FIZ", "Taramalı Elektron Mikroskobu (SEM)", "Zeiss EVO 15 + EDS", "SEM-2021-0042", "active", 1, 1, 4, 30, 30, 8,
+         "İletken olmayan numuneler altın/karbon kaplanmalıdır."),
+        ("FEF-FIZ", "X-Işını Kırınım Cihazı (XRD)", "Rigaku MiniFlex 600", "XRD-2019-0027", "maintenance", 1, 1, 6, 30, 60, 0,
+         "Yıllık radyasyon güvenliği ölçümü ve kalibrasyon bakımı sürüyor."),
     ]
     dev_ids = {}
-    for code, name, model, serial, status, cert, isg, maxh, notes in devices:
+    for code, name, model, serial, status, cert, isg, maxh, mn, adv, wk, notes in devices:
         cur = conn.execute(
             "INSERT INTO devices (lab_id,name,brand_model,serial_no,status,requires_certificate,requires_isg,"
-            "max_daily_hours,usage_notes) VALUES (?,?,?,?,?,?,?,?,?)",
-            (lab_ids[code], name, model, serial, status, cert, isg, maxh, notes))
+            "max_daily_hours,usage_notes,min_minutes,max_advance_days,weekly_max_hours) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (lab_ids[code], name, model, serial, status, cert, isg, maxh, notes, mn, adv, wk))
         dev_ids[serial] = cur.lastrowid
-
-    # Cihaz bazinda randevu kurallari: en kisa sure (dk), en fazla kac gun ileriye, haftalik ust sinir (0 = yok)
-    rules = {"SEM-2021-0042": (30, 30, 8), "FTIR-2019-0117": (30, 60, 0), "PCR-2022-0310": (60, 45, 16),
-             "HPLC-2020-0076": (60, 60, 0), "BIO-2023-0008": (60, 30, 8), "HPC-2022-0201": (60, 14, 24),
-             "KON-2021-0055": (30, 60, 0)}
-    for serial, (mn, adv, wk) in rules.items():
-        conn.execute("UPDATE devices SET min_minutes=?, max_advance_days=?, weekly_max_hours=? WHERE id=?",
-                     (mn, adv, wk, dev_ids[serial]))
 
     ali = ids["ali.yilmaz@ogr.universite.edu.tr"]
     zeynep = ids["zeynep.arslan@ogr.universite.edu.tr"]
+    can = ids["can.aydin@ogr.universite.edu.tr"]
+    ayse = ids["ayse.koc@ogr.universite.edu.tr"]
     ahmet = ids["danisman@universite.edu.tr"]
     elif_ = ids["elif.sahin@universite.edu.tr"]
-    sem, ftir, pcr = dev_ids["SEM-2021-0042"], dev_ids["FTIR-2019-0117"], dev_ids["PCR-2022-0310"]
-    hplc, gpu = dev_ids["HPLC-2020-0076"], dev_ids["HPC-2022-0201"]
+    hasan = ids["hasan.celik@universite.edu.tr"]
+    nir, kje, ank = dev_ids["NIR-2022-0101"], dev_ids["KJE-2019-0044"], dev_ids["ANK-2021-0015"]
+    icp, gcm, hplc, pcr = dev_ids["ICP-2023-0007"], dev_ids["GCM-2022-0018"], dev_ids["HPLC-2020-0076"], dev_ids["PCR-2022-0310"]
 
-    # Ali Yilmaz: SEM ve RT-PCR sertifikasi var, 3D Biyoyazici sertifikasi YOK (test icin).
+    # Ali Yilmaz: NIR ve Kjeldahl sertifikasi var, ICP-OES sertifikasi YOK (test icin).
     certs = [
-        (ali, sem, selin, d(-60), d(305)),
-        (ali, pcr, selin, d(-30), d(335)),
-        (zeynep, pcr, selin, d(-200), d(165)),
+        (ali, nir, selin, d(-60), d(305)),
+        (ali, kje, selin, d(-30), d(335)),
+        (ayse, icp, selin, d(-90), d(275)),
+        (zeynep, pcr, murat, d(-200), d(165)),
+        (can, gcm, murat, d(-45), d(320)),
     ]
     for uid, did, by, ga, ex in certs:
         conn.execute("INSERT INTO user_certificates (user_id,device_id,granted_by,granted_at,expires_at) "
@@ -340,23 +372,24 @@ def seed_data(conn):
 
     created = now_str()
     reservations = [
-        (ali, sem, ahmet, d(-7), "10:00", "12:30", "Ti-6Al-4V alaşımında yüzey morfolojisi",
-         "Isıl işlem sonrası kırık yüzey incelemesi", "completed", "Uygundur.", "Onaylandı.", 2.5,
-         "Ölçüm tamamlandı, 14 görüntü alındı. Cihaz normal çalışıyor."),
-        (ali, ftir, ahmet, d(2), "09:00", "11:00", "Polimer kompozitlerde fonksiyonel grup analizi",
-         "Katkı oranına göre spektrum karşılaştırması", "approved", "Uygun görülmüştür.",
-         "Onaylandı, ATR aparatı hazır olacak.", None, None),
-        (ali, sem, ahmet, d(3), "13:00", "15:00", "Ti-6Al-4V alaşımında yüzey morfolojisi",
-         "EDS ile element haritalama", "pending_advisor", None, None, None, None),
-        (ali, pcr, ahmet, d(4), "10:00", "13:00", "Biyouyumluluk testi - gen ifadesi",
-         "Kaplamalı yüzeylerde hücre yanıtı", "pending_lab", "Disiplinlerarası çalışma, onaylıyorum.",
+        (ali, nir, ahmet, d(-7), "10:00", "12:30", "Mısır silajında besin madde değişimi",
+         "Silaj örneklerinde ham protein ve NDF tahmini", "completed", "Uygundur.", "Onaylandı.", 2.5,
+         "48 örnek okundu, sonuçlar dışa aktarıldı. Cihaz normal çalışıyor."),
+        (ali, ank, ahmet, d(2), "09:00", "11:00", "Yonca kuru otunda lif fraksiyonları",
+         "NDF ve ADF analizi, 24 örnek", "approved", "Uygun görülmüştür.",
+         "Onaylandı, deterjan çözeltileri hazır olacak.", None, None),
+        (ali, nir, ahmet, d(3), "13:00", "15:00", "Mısır silajında besin madde değişimi",
+         "Fermantasyonun 60. günü örnekleri", "pending_advisor", None, None, None, None),
+        (ali, kje, ahmet, d(4), "10:00", "13:00", "Besi rasyonlarında ham protein doğrulaması",
+         "Rasyon örneklerinde Kjeldahl ile ham protein", "pending_lab", "Tez çalışması kapsamında, onaylıyorum.",
          None, None, None),
-        (zeynep, hplc, elif_, d(1), "14:00", "17:00", "Bitki ekstraktlarında fenolik bileşik tayini",
+        (zeynep, hplc, elif_, d(1), "14:00", "17:00", "Tıbbi bitki ekstraktlarında fenolik bileşikler",
          "Standart eğrisi ve numune analizi", "rejected", None,
          "İSG eğitim süreniz dolmuş; yenilendikten sonra tekrar başvurunuz.", None, None),
-        (ids["can.aydin@ogr.universite.edu.tr"], gpu, ahmet, d(1), "09:00", "17:00",
-         "Derin öğrenme ile mikroyapı sınıflandırma", "Model eğitimi", "approved", "Onaylıyorum.",
-         "Onaylandı.", None, None),
+        (can, gcm, elif_, d(1), "09:00", "14:00", "Uçucu yağlarda bileşen analizi",
+         "Kekik ve nane yağı örnekleri", "approved", "Onaylıyorum.", "Onaylandı.", None, None),
+        (ayse, icp, hasan, d(5), "10:00", "14:00", "Kalecik yöresi bağ topraklarında mikro element durumu",
+         "40 toprak örneğinde Fe, Zn, Mn, Cu, B", "approved", "Uygundur.", "Onaylandı, argon yeterli.", None, None),
     ]
     for r in reservations:
         conn.execute(
@@ -379,6 +412,10 @@ def init_db():
         migrate(conn)
         if is_new or conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
             seed_data(conn)
+        if conn.execute("SELECT COUNT(*) FROM faculties").fetchone()[0] == 0:
+            # Eski surumden gelen veritabani: iki fakulte hazir eklenir, laboratuvarlar yonetim ekranindan atanir.
+            conn.executemany("INSERT INTO faculties (name, code) VALUES (?,?)",
+                             [("Fen-Edebiyat Fakültesi", "FEF"), ("Ziraat Fakültesi", "ZF")])
         for k, v in DEFAULT_SETTINGS.items():
             conn.execute("INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)", (k, v))
         conn.commit()
@@ -980,10 +1017,54 @@ def can_manage_lab(u, lab_id):
 @login_required()
 def api_labs():
     rows = get_db().execute(
-        "SELECT l.*, u.full_name AS manager_name, u.email AS manager_email, "
-        "(SELECT COUNT(*) FROM devices d WHERE d.lab_id=l.id) AS device_count "
-        "FROM laboratories l LEFT JOIN users u ON u.id=l.manager_id ORDER BY l.name").fetchall()
+        "SELECT l.*, u.full_name AS manager_name, u.email AS manager_email, f.name AS faculty_name, "
+        "f.code AS faculty_code, (SELECT COUNT(*) FROM devices d WHERE d.lab_id=l.id) AS device_count "
+        "FROM laboratories l LEFT JOIN users u ON u.id=l.manager_id LEFT JOIN faculties f ON f.id=l.faculty_id "
+        "ORDER BY f.name, l.name").fetchall()
     return jsonify([row_dict(r) for r in rows])
+
+
+def _faculty_param(db, raw):
+    if raw in (None, "", 0, "0"):
+        return None
+    try:
+        fid = int(raw)
+    except (TypeError, ValueError):
+        raise ApiError("Geçersiz fakülte.")
+    if not db.execute("SELECT 1 FROM faculties WHERE id=?", (fid,)).fetchone():
+        raise ApiError("Fakülte bulunamadı.")
+    return fid
+
+
+@app.route("/api/faculties")
+@login_required()
+def api_faculties():
+    rows = get_db().execute(
+        "SELECT f.*, (SELECT COUNT(*) FROM laboratories l WHERE l.faculty_id=f.id) AS lab_count, "
+        "(SELECT COUNT(*) FROM devices d JOIN laboratories l ON l.id=d.lab_id WHERE l.faculty_id=f.id) AS device_count "
+        "FROM faculties f ORDER BY f.name").fetchall()
+    return jsonify([row_dict(r) for r in rows])
+
+
+@app.route("/api/faculties", methods=["POST"])
+@login_required("admin")
+def api_faculty_create():
+    data = body()
+    name = s(data, "name", True, 150, "Fakülte adı")
+    code = s(data, "code", True, 10, "Kısa kod").upper()
+    db = get_db()
+    if db.execute("SELECT 1 FROM faculties WHERE name=? OR code=?", (name, code)).fetchone():
+        raise ApiError("Bu ad veya kodla kayıtlı bir fakülte zaten var.")
+    db.execute("INSERT INTO faculties (name, code) VALUES (?,?)", (name, code))
+    db.commit()
+    audit("FAKULTE_EKLENDI", f"{code} - {name}")
+    return jsonify(ok=True)
+
+
+@app.route("/api/info")
+def api_info():
+    """Giris ekrani icin kurum adi (oturum gerektirmez)."""
+    return jsonify(institution_name=get_settings().get("institution_name") or "")
 
 
 @app.route("/api/labs", methods=["POST"])
@@ -1000,9 +1081,10 @@ def api_lab_create():
             raise ApiError("Sorumlu olarak yalnızca Lab. Sorumlusu rolündeki bir kullanıcı seçilebilir.")
     if db.execute("SELECT 1 FROM laboratories WHERE code=?", (code,)).fetchone():
         raise ApiError("Bu kodla kayıtlı bir laboratuvar zaten var.")
-    db.execute("INSERT INTO laboratories (name,code,building_room,manager_id,description,is_active) "
-               "VALUES (?,?,?,?,?,1)", (name, code, s(data, "building_room", max_len=150), manager_id,
-                                        s(data, "description", max_len=1000)))
+    faculty_id = _faculty_param(db, data.get("faculty_id"))
+    db.execute("INSERT INTO laboratories (name,code,building_room,manager_id,description,is_active,faculty_id) "
+               "VALUES (?,?,?,?,?,1,?)", (name, code, s(data, "building_room", max_len=150), manager_id,
+                                          s(data, "description", max_len=1000), faculty_id))
     db.commit()
     audit("LAB_EKLENDI", f"{code} - {name}")
     return jsonify(ok=True)
@@ -1022,16 +1104,19 @@ def api_lab_update(lab_id):
         if not m or m["role"] not in ("lab_manager", "admin"):
             raise ApiError("Sorumlu olarak yalnızca Lab. Sorumlusu rolündeki bir kullanıcı seçilebilir.")
     is_active = 1 if data.get("is_active", lab["is_active"]) else 0
-    db.execute("UPDATE laboratories SET manager_id=?, is_active=? WHERE id=?", (manager_id, is_active, lab_id))
+    faculty_id = _faculty_param(db, data["faculty_id"]) if "faculty_id" in data else lab["faculty_id"]
+    db.execute("UPDATE laboratories SET manager_id=?, is_active=?, faculty_id=? WHERE id=?",
+               (manager_id, is_active, faculty_id, lab_id))
     db.commit()
-    audit("LAB_GUNCELLENDI", f"{lab['code']}: sorumlu={manager_id}, aktif={is_active}")
+    audit("LAB_GUNCELLENDI", f"{lab['code']}: sorumlu={manager_id}, aktif={is_active}, fakülte={faculty_id}")
     return jsonify(ok=True)
 
 
 def device_rows(db, where="1", params=()):
     return db.execute(
         "SELECT d.*, l.name AS lab_name, l.code AS lab_code, l.building_room, l.manager_id, l.is_active AS lab_active, "
-        "u.full_name AS manager_name FROM devices d JOIN laboratories l ON l.id=d.lab_id "
+        "u.full_name AS manager_name, l.faculty_id, f.name AS faculty_name, f.code AS faculty_code "
+        "FROM devices d JOIN laboratories l ON l.id=d.lab_id LEFT JOIN faculties f ON f.id=l.faculty_id "
         f"LEFT JOIN users u ON u.id=l.manager_id WHERE {where} ORDER BY l.name, d.name", params).fetchall()
 
 
@@ -1366,8 +1451,8 @@ RES_SELECT = (
     "SELECT r.*, d.name AS device_name, d.lab_id, d.status AS device_status, l.name AS lab_name, "
     "l.manager_id, u.full_name AS user_name, u.email AS user_email, a.full_name AS advisor_name, "
     "m.full_name AS manager_name, (SELECT COUNT(*) FROM reservations s2 WHERE s2.series_id=r.series_id) "
-    "AS series_count FROM reservations r JOIN devices d ON d.id=r.device_id "
-    "JOIN laboratories l ON l.id=d.lab_id JOIN users u ON u.id=r.user_id "
+    "AS series_count, fa.name AS faculty_name FROM reservations r JOIN devices d ON d.id=r.device_id "
+    "JOIN laboratories l ON l.id=d.lab_id LEFT JOIN faculties fa ON fa.id=l.faculty_id JOIN users u ON u.id=r.user_id "
     "LEFT JOIN users a ON a.id=r.advisor_id LEFT JOIN users m ON m.id=l.manager_id")
 
 
@@ -1903,7 +1988,7 @@ def api_issue_resolve(issue_id):
 # Kullanim raporlari ve Excel aktarimi
 # --------------------------------------------------------------------------
 
-REPORT_GROUPS = {"device": "Cihaz", "lab": "Laboratuvar", "advisor": "Danışman", "user": "Kullanıcı", "month": "Ay"}
+REPORT_GROUPS = {"faculty": "Fakülte", "device": "Cihaz", "lab": "Laboratuvar", "advisor": "Danışman", "user": "Kullanıcı", "month": "Ay"}
 MONTHS_TR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim",
              "Kasım", "Aralık"]
 
@@ -1927,9 +2012,13 @@ def report_data():
         where += " AND r.advisor_id=? AND r.user_id<>?"; params += [u["id"], u["id"]]
     if request.args.get("lab_id"):
         where += " AND d.lab_id=?"; params.append(int(request.args["lab_id"]))
+    if request.args.get("faculty_id"):
+        where += " AND l.faculty_id=?"; params.append(int(request.args["faculty_id"]))
     rows = get_db().execute(RES_SELECT + f" WHERE {where} ORDER BY r.date, r.start_time", params).fetchall()
 
     def key_of(r):
+        if group == "faculty":
+            return r["faculty_name"] or "(Fakülte atanmamış)"
         if group == "device":
             return r["device_name"]
         if group == "lab":
@@ -1972,6 +2061,7 @@ def report_data():
                "pending")}
     details = [{"id": r["id"], "date": r["date"], "start_time": r["start_time"], "end_time": r["end_time"],
                 "device_name": r["device_name"], "lab_name": r["lab_name"], "user_name": r["user_name"],
+                "faculty_name": r["faculty_name"] or "",
                 "advisor_name": r["advisor_name"] if r["advisor_id"] != r["user_id"] else "",
                 "project_title": r["project_title"],
                 "status": "Gelinmedi" if (r["status"] == "cancelled" and r["no_show"]) else RES_STATUS_LABELS[r["status"]],
@@ -2092,14 +2182,15 @@ def api_report_usage_xlsx():
              int(t["upcoming"]), int(t["no_show"]),
              float(round(100.0 * t["no_show"] / (t["completed"] + t["no_show"]), 1) if (t["completed"] + t["no_show"]) else 0.0),
              int(t["cancelled"]), int(t["rejected"]), int(t["pending"])]
-    det_headers = ["No", "Tarih", "Başlangıç", "Bitiş", "Cihaz", "Laboratuvar", "Kullanıcı", "Danışman", "Proje",
-                   "Durum", "Gerçekleşen Saat"]
-    det_rows = [[x["id"], x["date"], x["start_time"], x["end_time"], x["device_name"], x["lab_name"], x["user_name"],
+    det_headers = ["No", "Tarih", "Başlangıç", "Bitiş", "Fakülte", "Cihaz", "Laboratuvar", "Kullanıcı", "Danışman",
+                   "Proje", "Durum", "Gerçekleşen Saat"]
+    det_rows = [[x["id"], x["date"], x["start_time"], x["end_time"], x["faculty_name"], x["device_name"], x["lab_name"],
+                 x["user_name"],
                  x["advisor_name"], x["project_title"], x["status"],
                  float(x["actual_hours"]) if x["actual_hours"] is not None else ""] for x in d["details"]]
     data = build_xlsx([
         ("Özet", sum_headers, sum_rows, [34, 9, 12, 16, 15, 15, 11, 18, 8, 8, 14], total),
-        ("Ayrıntı", det_headers, det_rows, [7, 12, 10, 9, 32, 34, 22, 24, 40, 26, 16]),
+        ("Ayrıntı", det_headers, det_rows, [7, 12, 10, 9, 24, 32, 34, 22, 24, 40, 26, 16]),
     ])
     audit("RAPOR_INDIRILDI", f"Kullanım raporu {d['from']} - {d['to']} ({d['group_label']})")
     name = f"labnet-kullanim-{d['from']}_{d['to']}.xlsx"
@@ -2161,6 +2252,8 @@ def api_settings_put():
                 raise ApiError("Port 1-65535 arasında bir sayı olmalıdır.")
         if key == "allowed_cidrs":
             val = _validate_cidrs(val)
+        if key == "institution_name" and len(val) > 150:
+            raise ApiError("Kurum adı en fazla 150 karakter olabilir.")
         if key == "smtp_from" and val and not EMAIL_RE.match(val):
             raise ApiError("Gönderen e-posta adresi geçerli değil.")
         if len(val) > 2000:
