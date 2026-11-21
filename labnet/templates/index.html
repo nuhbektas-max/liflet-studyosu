@@ -249,6 +249,47 @@ table.t tr:hover td{background:#fafcfd}
 @keyframes sp{to{transform:rotate(360deg)}}
 code{background:#eef3f7;padding:1px 5px;border-radius:4px;font-size:12.5px}
 
+/* Yetkisiz cihaz, saat seridi, takvim secimi, QR, rapor */
+.dev.dim{opacity:.62}
+.dev.dim:hover{opacity:1}
+.dev h4 a{color:inherit;text-decoration:none;cursor:pointer}
+.dev h4 a:hover{color:var(--teal);text-decoration:underline}
+.strip{display:grid;grid-template-columns:repeat(30,1fr);gap:2px;margin:6px 0 4px;user-select:none}
+.strip button{height:30px;border:0;border-radius:3px;background:#dff0ed;cursor:pointer;padding:0;position:relative}
+.strip button:hover{background:#b9e0da}
+.strip button.busy{background:repeating-linear-gradient(45deg,#f6d9d5,#f6d9d5 4px,#fbe9e7 4px,#fbe9e7 8px);cursor:not-allowed}
+.strip button.pend{background:repeating-linear-gradient(45deg,#fbe7b5,#fbe7b5 4px,#fff4d6 4px,#fff4d6 8px);cursor:not-allowed}
+.strip button.past{background:#eceff3;cursor:not-allowed}
+.strip button.sel{background:var(--teal)}
+.strip-axis{display:grid;grid-template-columns:repeat(15,1fr);font-size:10.5px;color:var(--muted)}
+.strip-axis span{border-left:1px solid #d5dde6;padding-left:2px}
+.cal-col{cursor:crosshair;touch-action:pan-y}
+.cal-ghost{position:absolute;left:3px;right:3px;background:rgba(30,126,116,.18);border:2px dashed var(--teal);border-radius:6px;font-size:11.5px;font-weight:700;color:var(--teal);padding:3px 6px;pointer-events:none;z-index:3}
+.ev{z-index:2}
+.ev.live{background:#c9ece4;border-color:#0f6b61;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(30,126,116,.35)}50%{box-shadow:0 0 0 4px rgba(30,126,116,0)}}
+.qr-label{display:inline-flex;flex-direction:column;align-items:center;gap:4px;border:1px dashed #9aa9b9;border-radius:8px;padding:12px 14px;width:220px;text-align:center;background:#fff;break-inside:avoid;margin:6px}
+.qr-label b{font-size:13px;color:var(--navy);line-height:1.2}
+.qr-label small{font-size:10.5px;color:#475569;overflow-wrap:anywhere}
+.qr-label .qr-brand{font-size:10px;letter-spacing:2px;color:var(--teal);font-weight:700}
+#printArea{display:none}
+@media print{
+  body>*:not(#printArea){display:none!important}
+  #printArea{display:block!important;padding:0}
+  .qr-label{border-color:#666}
+}
+.live-box{border:2px solid var(--teal);background:var(--teal-soft);border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.live-box b{color:var(--navy)}
+.rbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:#edf1f5;min-width:90px}
+.rbar i{display:block;height:100%}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.total td{font-weight:700;background:var(--teal-soft)}
+.timeline{position:relative;height:46px;background:#f1f5f9;border-radius:8px;overflow:hidden;margin:6px 0 4px}
+.timeline .blk{position:absolute;top:6px;bottom:6px;border-radius:5px;font-size:11px;padding:2px 5px;overflow:hidden;white-space:nowrap;color:#0f4e47;background:#cfeae5;border-left:3px solid var(--teal)}
+.timeline .blk.pend{background:#fff1cf;border-color:#e0a106;color:#6b4300}
+.timeline .blk.done{background:#e8ecf1;border-color:#8a9bb0;color:#3b4a5c}
+.timeline .now{position:absolute;top:0;bottom:0;width:2px;background:var(--bad)}
+
 /* ---------- Duyarli ---------- */
 @media (max-width:1100px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:1fr 1fr}}
 @media (max-width:860px){
@@ -260,7 +301,7 @@ code{background:#eef3f7;padding:1px 5px;border-radius:4px;font-size:12.5px}
   .user-chip .txt{display:none}.top h1{font-size:16px}
   .isg-l{display:none}.isg-s{display:inline}
 }
-@media (max-width:520px){.g4{grid-template-columns:1fr}.login-form{padding:26px}.demo-grid{grid-template-columns:1fr}.kv{grid-template-columns:1fr}
+@media (max-width:520px){.strip button{height:26px}.strip-axis span:nth-child(even){visibility:hidden}.g4{grid-template-columns:1fr}.login-form{padding:26px}.demo-grid{grid-template-columns:1fr}.kv{grid-template-columns:1fr}
   .steps{flex-direction:column;align-items:flex-start;gap:6px}.step-line{display:none}}
 </style>
 </head>
@@ -334,10 +375,78 @@ code{background:#eef3f7;padding:1px 5px;border-radius:4px;font-size:12.5px}
 </div>
 
 <div id="modalRoot"></div>
+<div id="printArea"></div>
 <div id="toasts"></div>
 
 <script>
 "use strict";
+/* ---------- QR kod ureticisi (bayt kipi, hata duzeltme M, surum 1-20; harici kutuphane yok) ---------- */
+const QR = (function(){
+  const ECC = [-1,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26];
+  const BLK = [-1,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16];
+  function rawModules(v){ let r=(16*v+128)*v+64; if(v>=2){ const n=Math.floor(v/7)+2; r-=(25*n-10)*n-55; if(v>=7) r-=36; } return r; }
+  function dataCodewords(v){ return Math.floor(rawModules(v)/8)-ECC[v]*BLK[v]; }
+  function gmul(x,y){ let z=0; for(let i=7;i>=0;i--){ z=(z<<1)^((z>>>7)*0x11D); z^=((y>>>i)&1)*x; } return z&255; }
+  function rsDivisor(deg){ const r=new Array(deg).fill(0); r[deg-1]=1; let root=1; for(let i=0;i<deg;i++){ for(let j=0;j<r.length;j++){ r[j]=gmul(r[j],root); if(j+1<r.length) r[j]^=r[j+1]; } root=gmul(root,2); } return r; }
+  function rsRemainder(data,div){ const r=div.map(()=>0); for(const b of data){ const f=b^r.shift(); r.push(0); div.forEach((c,i)=>{ r[i]^=gmul(c,f); }); } return r; }
+  function alignPos(v,size){ if(v===1) return []; const n=Math.floor(v/7)+2; const step=Math.floor((v*8+n*3+5)/(n*4-4))*2; const res=[]; for(let p=size-7;res.length<n-1;p-=step) res.unshift(p); res.unshift(6); return res; }
+  function utf8(str){ return Array.from(new TextEncoder().encode(str)); }
+  function encode(text){
+    const bytes=utf8(text);
+    let v=1;
+    for(;v<=20;v++){ const cap=dataCodewords(v)*8; const need=4+(v<10?8:16)+bytes.length*8; if(need<=cap) break; }
+    if(v>20) throw new Error('Metin QR kod için çok uzun.');
+    const bits=[]; const put=(val,len)=>{ for(let i=len-1;i>=0;i--) bits.push((val>>>i)&1); };
+    put(4,4); put(bytes.length, v<10?8:16); bytes.forEach(b=>put(b,8));
+    const capBits=dataCodewords(v)*8;
+    put(0, Math.min(4, capBits-bits.length));
+    put(0, (8-bits.length%8)%8);
+    for(let pad=0xEC; bits.length<capBits; pad^=0xEC^0x11) put(pad,8);
+    const data=[]; for(let i=0;i<bits.length;i+=8){ let b=0; for(let j=0;j<8;j++) b=(b<<1)|bits[i+j]; data.push(b); }
+    // bloklara bol, RS ekle, ic ice gecir
+    const nb=BLK[v], el=ECC[v], raw=Math.floor(rawModules(v)/8);
+    const nShort=nb-raw%nb, shortLen=Math.floor(raw/nb), div=rsDivisor(el);
+    const blocks=[]; for(let i=0,k=0;i<nb;i++){ const dat=data.slice(k,k+shortLen-el+(i<nShort?0:1)); k+=dat.length; const ecc=rsRemainder(dat,div); if(i<nShort) dat.push(0); blocks.push(dat.concat(ecc)); }
+    const cw=[]; for(let i=0;i<blocks[0].length;i++) blocks.forEach((b,j)=>{ if(i!==shortLen-el||j>=nShort) cw.push(b[i]); });
+    // matris
+    const size=v*4+17;
+    const M=[...Array(size)].map(()=>new Array(size).fill(false));
+    const F=[...Array(size)].map(()=>new Array(size).fill(false));
+    const setF=(x,y,d)=>{ M[y][x]=d; F[y][x]=true; };
+    for(let i=0;i<size;i++){ setF(6,i,i%2===0); setF(i,6,i%2===0); }
+    const finder=(x,y)=>{ for(let dy=-4;dy<=4;dy++) for(let dx=-4;dx<=4;dx++){ const d=Math.max(Math.abs(dx),Math.abs(dy)), xx=x+dx, yy=y+dy; if(xx>=0&&xx<size&&yy>=0&&yy<size) setF(xx,yy,d!==2&&d!==4); } };
+    finder(3,3); finder(size-4,3); finder(3,size-4);
+    const ap=alignPos(v,size), na=ap.length;
+    for(let i=0;i<na;i++) for(let j=0;j<na;j++){ if((i===0&&j===0)||(i===0&&j===na-1)||(i===na-1&&j===0)) continue; for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++) setF(ap[i]+dx,ap[j]+dy,Math.max(Math.abs(dx),Math.abs(dy))!==1); }
+    const drawFormat=(mask)=>{ const dat=(0<<3)|mask; let rem=dat; for(let i=0;i<10;i++) rem=(rem<<1)^((rem>>>9)*0x537); const b=((dat<<10)|rem)^0x5412; const g=i=>((b>>>i)&1)!==0;
+      for(let i=0;i<=5;i++) setF(8,i,g(i)); setF(8,7,g(6)); setF(8,8,g(7)); setF(7,8,g(8)); for(let i=9;i<15;i++) setF(14-i,8,g(i));
+      for(let i=0;i<8;i++) setF(size-1-i,8,g(i)); for(let i=8;i<15;i++) setF(8,size-15+i,g(i)); setF(8,size-8,true); };
+    drawFormat(0);
+    if(v>=7){ let rem=v; for(let i=0;i<12;i++) rem=(rem<<1)^((rem>>>11)*0x1F25); const b=(v<<12)|rem; for(let i=0;i<18;i++){ const bit=((b>>>i)&1)!==0, a=size-11+i%3, c=Math.floor(i/3); setF(a,c,bit); setF(c,a,bit); } }
+    // veri modulleri
+    let bi=0;
+    for(let right=size-1;right>=1;right-=2){ if(right===6) right=5; for(let vert=0;vert<size;vert++) for(let j=0;j<2;j++){ const x=right-j, up=((right+1)&2)===0, y=up?size-1-vert:vert; if(!F[y][x]&&bi<cw.length*8){ M[y][x]=((cw[bi>>>3]>>>(7-(bi&7)))&1)!==0; bi++; } } }
+    const maskFn=[(x,y)=>(x+y)%2===0,(x,y)=>y%2===0,(x,y)=>x%3===0,(x,y)=>(x+y)%3===0,(x,y)=>(Math.floor(x/3)+Math.floor(y/2))%2===0,(x,y)=>x*y%2+x*y%3===0,(x,y)=>(x*y%2+x*y%3)%2===0,(x,y)=>((x+y)%2+x*y%3)%2===0];
+    const applyMask=m=>{ for(let y=0;y<size;y++) for(let x=0;x<size;x++) if(!F[y][x]&&maskFn[m](x,y)) M[y][x]=!M[y][x]; };
+    const penalty=()=>{ let p=0, dark=0;
+      for(let y=0;y<size;y++){ let run=1; for(let x=1;x<size;x++){ if(M[y][x]===M[y][x-1]){ run++; if(run===5) p+=3; else if(run>5) p++; } else run=1; } }
+      for(let x=0;x<size;x++){ let run=1; for(let y=1;y<size;y++){ if(M[y][x]===M[y-1][x]){ run++; if(run===5) p+=3; else if(run>5) p++; } else run=1; } }
+      for(let y=0;y<size-1;y++) for(let x=0;x<size-1;x++){ const c=M[y][x]; if(c===M[y][x+1]&&c===M[y+1][x]&&c===M[y+1][x+1]) p+=3; }
+      for(let y=0;y<size;y++) for(let x=0;x<size;x++) if(M[y][x]) dark++;
+      p+=Math.floor(Math.abs(dark*20-size*size*10)/(size*size))*10; return p; };
+    let best=0, bestP=Infinity;
+    for(let m=0;m<8;m++){ applyMask(m); drawFormat(m); const p=penalty(); if(p<bestP){ bestP=p; best=m; } applyMask(m); }
+    applyMask(best); drawFormat(best);
+    return M;
+  }
+  function svg(text, px){
+    const M=encode(text), n=M.length, q=4, s=n+q*2;
+    let d=''; for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(M[y][x]) d+='M'+(x+q)+' '+(y+q)+'h1v1h-1z';
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+s+' '+s+'" width="'+(px||160)+'" height="'+(px||160)+'" shape-rendering="crispEdges"><rect width="'+s+'" height="'+s+'" fill="#fff"/><path d="'+d+'" fill="#000"/></svg>';
+  }
+  return {encode, svg};
+})();
+
 /* ---------- Ikonlar (inline SVG) ---------- */
 const ICONS = {
   flask:'<path d="M9 3h6M10 3v6.5L4.6 18.4A1.8 1.8 0 0 0 6.2 21h11.6a1.8 1.8 0 0 0 1.6-2.6L14 9.5V3"/><path d="M7.5 15h9"/>',
@@ -379,7 +488,14 @@ const ICONS = {
   inbox:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>',
   cpu:'<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/>',
   dna:'<path d="M2 15c6.7-6 13.3 0 20-6M2 9c6.7 6 13.3 0 20 6M5 11.5v1M9 10v4M15 10v4M19 11.5v1"/>',
-  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+  lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  qr:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4"/>',
+  play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+  stop:'<rect x="5" y="5" width="14" height="14" rx="2"/>',
+  chart:'<path d="M3 3v18h18"/><path d="M7 16V10M12 16V6M17 16v-4"/>',
+  repeat:'<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+  printer:'<path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  bug:'<path d="M8 2l1.9 1.9M16 2l-1.9 1.9M9 7.1V6a3 3 0 0 1 6 0v1.1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6zM12 20v-9M6.5 13H3M21 13h-3.5M6 9l-3-2M18 9l3-2M6 17l-3 2M18 17l3 2"/>'
 };
 function ic(name, cls){ return '<svg class="i '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true">'+(ICONS[name]||'')+'</svg>'; }
 function hydrateIcons(root){ (root||document).querySelectorAll('[data-icon]').forEach(el=>{ if(!el.dataset.done){ el.insertAdjacentHTML('afterbegin', ic(el.dataset.icon)); el.dataset.done='1'; } }); }
@@ -396,6 +512,8 @@ function parseISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,
 const DAYS=['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
 const DAYS_S=['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
 function toMin(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
+function toHM(m){ m=Math.max(0,Math.min(1439,m)); return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function fmtMin(m){ return m%60===0? (m/60)+' sa' : (m>=60? Math.floor(m/60)+' sa '+(m%60)+' dk' : m+' dk'); }
 function initials(n){ return String(n||'?').replace(/(Prof\.|Doç\.|Dr\.|Öğr\.|Gör\.)/g,'').trim().split(/\s+/).slice(0,2).map(x=>x[0]||'').join('').toLocaleUpperCase('tr'); }
 
 function toast(msg, type){
@@ -417,7 +535,7 @@ async function api(path, opts){
   let data=null;
   try{ data=await res.json(); }catch(e){ data=null; }
   if(res.status===401 && path!=='/api/login' && path!=='/api/me'){ showLogin(); throw new Error((data&&data.error)||'Oturumunuz sona erdi, lütfen tekrar giriş yapın.'); }
-  if(!res.ok){ throw new Error((data&&data.error)||('İstek başarısız oldu (HTTP '+res.status+').')); }
+  if(!res.ok){ const err=new Error((data&&data.error)||('İstek başarısız oldu (HTTP '+res.status+').')); err.data=data; err.status=res.status; throw err; }
   return data;
 }
 async function act(btn, fn){
@@ -454,22 +572,24 @@ function devBadge(st){ const b=DEV_BADGE[st]||['b-gray',st,'info']; return '<spa
 function deviceIcon(name){ const n=(name||'').toLowerCase(); if(n.includes('mikroskop')) return 'micro'; if(n.includes('pcr')||n.includes('biyo')) return 'dna'; if(n.includes('gpu')||n.includes('hesaplama')) return 'cpu'; return 'flask'; }
 
 /* ---------- Durum ---------- */
-const S={ me:null, page:'dashboard', counts:{}, devices:[], labs:[], advisors:[], resTab:'mine', labTab:'devices', adminTab:'users',
-  cal:{mode:'week', start:null, device:null}, catalog:{q:'', lab:'', status:''} };
+const S={ me:null, page:'dashboard', counts:{}, devices:[], labs:[], advisors:[], resTab:null, labTab:'devices', adminTab:'users',
+  cal:{mode:'week', start:null, device:null}, catalog:{q:'', lab:'', status:'', sort:'auth'}, deviceId:null };
 
 const PAGES={
   dashboard:{title:'Gösterge Paneli', nav:'Gösterge Paneli', icon:'dash', roles:null, render:renderDashboard},
   catalog:{title:'Laboratuvarlar ve Cihaz Kataloğu', nav:'Cihaz Kataloğu', icon:'micro', roles:null, render:renderCatalog},
   reservations:{title:'Randevular ve Onay Yönetimi', nav:'Randevular / Onaylar', icon:'calendar', roles:null, render:renderReservations},
+  reports:{title:'Kullanım Raporları', nav:'Raporlar', icon:'chart', roles:['admin','lab_manager','advisor'], render:renderReports},
   labops:{title:'Lab. Sorumlusu İşlemleri', nav:'Lab. Sorumlusu İşlemleri', icon:'tool', roles:['lab_manager','admin'], render:renderLabOps},
-  admin:{title:'Sistem Yönetimi', nav:'Sistem Yönetimi', icon:'settings', roles:['admin'], render:renderAdmin}
+  admin:{title:'Sistem Yönetimi', nav:'Sistem Yönetimi', icon:'settings', roles:['admin'], render:renderAdmin},
+  device:{title:'Cihaz', nav:null, icon:'micro', roles:null, hidden:true, render:renderDevicePage}
 };
 
 function buildNav(){
   const r=S.me.role;
   let h='<div class="nav-label">Menü</div>';
   for(const [k,p] of Object.entries(PAGES)){
-    if(p.roles && !p.roles.includes(r)) continue;
+    if(p.hidden || (p.roles && !p.roles.includes(r))) continue;
     const cnt = k==='reservations' && S.counts.pending ? '<span class="count">'+S.counts.pending+'</span>' : '';
     h+='<a data-page="'+k+'" class="'+(S.page===k?'active':'')+'">'+ic(p.icon)+'<span>'+esc(k==='reservations'&&r==='student'?'Randevularım':p.nav)+'</span>'+cnt+'</a>';
   }
@@ -477,11 +597,16 @@ function buildNav(){
   $$('#nav a').forEach(a=>a.addEventListener('click',()=>{ go(a.dataset.page); closeSide(); }));
 }
 function go(page){
+  page=String(page||'');
+  const m=page.match(/^cihaz\/(\d+)$/);
+  if(m){ S.deviceId=+m[1]; page='device'; }
   if(!PAGES[page]) page='dashboard';
   const p=PAGES[page];
   if(p.roles && !p.roles.includes(S.me.role)) page='dashboard';
+  closeModal();
   S.page=page;
-  if(location.hash!=='#'+page) history.replaceState(null,'','#'+page);
+  const h = page==='device' ? 'cihaz/'+S.deviceId : page;
+  if(location.hash!=='#'+h) history.replaceState(null,'','#'+h);
   $('#pageTitle').textContent=PAGES[page].title;
   buildNav();
   $('#content').innerHTML=loading();
@@ -506,6 +631,7 @@ async function refreshCounts(){
 /* ---------- Giris / cikis ---------- */
 function showLogin(){ S.me=null; $('#app').classList.add('hidden'); $('#login').classList.remove('hidden'); closeModal(); setTimeout(()=>$('#lgEmail').focus(),50); }
 async function startApp(){
+  Object.assign(S,{resTab:null, labTab:'devices', adminTab:'users', devices:[], labs:[], advisors:[], resList:[], counts:{}});
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
   renderHeader();
   await refreshCounts();
@@ -539,13 +665,13 @@ $('#pwBtn').addEventListener('click',()=>{
     closeModal(); toast('Şifreniz değiştirildi.');
   }));
 });
-window.addEventListener('hashchange',()=>{ if(S.me){ const p=location.hash.replace('#',''); if(p && p!==S.page) go(p); } });
+window.addEventListener('hashchange',()=>{ if(S.me){ const p=location.hash.replace('#',''); const cur=S.page==='device'?'cihaz/'+S.deviceId:S.page; if(p && p!==cur) go(p); } });
 
 /* =========================================================
    1. GOSTERGE PANELI
    ========================================================= */
 const ACTION_LABELS={GIRIS:'Giriş',CIKIS:'Çıkış',GIRIS_BASARISIZ:'Başarısız giriş',RANDEVU_OLUSTUR:'Randevu talebi',RANDEVU_IPTAL:'Randevu iptali',
-  RANDEVU_TAMAMLANDI:'Kullanım raporu',DANISMAN_ONAY:'Danışman onayı',DANISMAN_RET:'Danışman reddi',LAB_ONAY:'Lab. onayı',LAB_RET:'Lab. reddi',
+  RANDEVU_TAMAMLANDI:'Kullanım raporu',KULLANIM_BASLADI:'Kullanım başladı',GELINMEDI:'Gelinmedi',ARIZA_BILDIRIMI:'Arıza bildirimi',ARIZA_KAPATILDI:'Arıza kapatıldı',RAPOR_INDIRILDI:'Rapor indirildi',DANISMAN_ONAY:'Danışman onayı',DANISMAN_RET:'Danışman reddi',LAB_ONAY:'Lab. onayı',LAB_RET:'Lab. reddi',
   CIHAZ_DURUM:'Cihaz durumu',CIHAZ_EKLENDI:'Cihaz eklendi',CIHAZ_GUNCELLENDI:'Cihaz güncellendi',SERTIFIKA_TANIMLANDI:'Sertifika tanımlandı',
   SERTIFIKA_YENILENDI:'Sertifika yenilendi',SERTIFIKA_IPTAL:'Sertifika iptali',KULLANICI_EKLENDI:'Kullanıcı eklendi',KULLANICI_GUNCELLENDI:'Kullanıcı güncellendi',
   AYAR_GUNCELLENDI:'Ayar güncellendi',LDAP_TEST:'LDAP testi',SMTP_TEST:'SMTP testi',YEDEK_INDIRILDI:'Yedek indirildi',KURULUM:'Kurulum',
@@ -599,6 +725,7 @@ async function renderCatalog(){
       '<div class="search">'+ic('search')+'<input class="inp" id="cq" placeholder="Cihaz, marka/model veya seri no ara…" value="'+esc(c.q)+'"></div>'+
       '<select class="inp" id="clab"><option value="">Tüm laboratuvarlar</option>'+S.labs.filter(l=>l.is_active||S.me.role==='admin').map(l=>'<option value="'+l.id+'"'+(String(l.id)===c.lab?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select>'+
       '<select class="inp" id="cst"><option value="">Tüm durumlar</option><option value="active"'+(c.status==='active'?' selected':'')+'>Aktif</option><option value="maintenance"'+(c.status==='maintenance'?' selected':'')+'>Bakımda</option><option value="broken"'+(c.status==='broken'?' selected':'')+'>Arızalı</option><option value="mine"'+(c.status==='mine'?' selected':'')+'>Yalnızca yetkili olduklarım</option></select>'+
+      '<select class="inp" id="csort" style="max-width:220px" title="Sıralama"><option value="auth"'+(c.sort==='auth'?' selected':'')+'>Önce yetkili olduklarım</option><option value="name"'+(c.sort==='name'?' selected':'')+'>Ada göre</option><option value="lab"'+(c.sort==='lab'?' selected':'')+'>Laboratuvara göre</option></select>'+
     '</div><div id="devList"></div>';
   const draw=()=>{
     $('#labStrip').innerHTML=S.labs.filter(l=>l.is_active).map(l=>'<div class="card lab-chip'+(String(l.id)===c.lab?' sel':'')+'" data-lab="'+l.id+'"><div class="dev-ic" style="width:36px;height:36px">'+ic('building')+'</div><div><b>'+esc(l.name)+'</b><div class="small muted">'+esc(l.code)+' · '+esc(l.building_room||'-')+'</div><div class="small muted">Sorumlu: '+esc(l.manager_name||'-')+' · '+l.device_count+' cihaz</div></div></div>').join('');
@@ -606,9 +733,14 @@ async function renderCatalog(){
     const q=c.q.toLocaleLowerCase('tr');
     const list=S.devices.filter(d=>(!c.lab||String(d.lab_id)===c.lab) && (!c.status || (c.status==='mine'? d.authorized : d.status===c.status)) &&
       (!q || [d.name,d.brand_model,d.serial_no,d.lab_name].join(' ').toLocaleLowerCase('tr').includes(q)));
+    const cmp=(a,b)=>a.localeCompare(b,'tr');
+    const rank=d=>(d.authorized?0:2)+(d.status==='active'?0:1);
+    list.sort((a,b)=> c.sort==='name'? cmp(a.name,b.name) : c.sort==='lab'? (cmp(a.lab_name,b.lab_name)||cmp(a.name,b.name)) : (rank(a)-rank(b)||cmp(a.name,b.name)));
     $('#devList').innerHTML = list.length? '<div class="dev-grid">'+list.map(devCard).join('')+'</div>' : empty('Aramanıza uygun cihaz bulunamadı.','search');
     $$('#devList [data-book]').forEach(b=>b.addEventListener('click',()=>openBooking(+b.dataset.book)));
+    $$('#devList [data-dev]').forEach(a=>a.addEventListener('click',()=>go('cihaz/'+a.dataset.dev)));
   };
+  $('#csort').addEventListener('change',e=>{ c.sort=e.target.value; draw(); });
   $('#cq').addEventListener('input',e=>{ c.q=e.target.value; draw(); });
   $('#clab').addEventListener('change',e=>{ c.lab=e.target.value; draw(); });
   $('#cst').addEventListener('change',e=>{ c.status=e.target.value; draw(); });
@@ -621,57 +753,121 @@ function devCard(d){
   const tags=[];
   if(d.requires_isg) tags.push('<span class="tag">'+ic('hard')+'İSG gerekli</span>');
   if(d.requires_certificate) tags.push('<span class="tag">'+ic('award')+'Sertifika gerekli'+(d.cert_expires_at?' · '+fmtDate(d.cert_expires_at)+"'e kadar":'')+'</span>');
-  tags.push('<span class="tag">'+ic('clock')+'Günlük en çok '+d.max_daily_hours+' sa</span>');
+  tags.push('<span class="tag">'+ic('clock')+'En az '+fmtMin(d.min_minutes)+' · günde en çok '+d.max_daily_hours+' sa'+(d.weekly_max_hours?' · haftada '+d.weekly_max_hours+' sa':'')+'</span>');
+  tags.push('<span class="tag">'+ic('calendar')+d.max_advance_days+' gün ileriye</span>');
+  if(d.open_issues) tags.push('<span class="badge b-bad">'+ic('bug')+d.open_issues+' açık arıza</span>');
   if(d.serial_no) tags.push('<span class="tag">SN: '+esc(d.serial_no)+'</span>');
   const canBook=d.status==='active';
-  return '<div class="card dev"><div class="dev-top"><div class="dev-ic">'+ic(deviceIcon(d.name))+'</div><div style="flex:1;min-width:0"><h4>'+esc(d.name)+'</h4><div class="meta">'+esc(d.brand_model||'')+'</div><div class="meta">'+ic('building')+' '+esc(d.lab_name)+' · '+esc(d.building_room||'')+'</div></div><div>'+devBadge(d.status)+'</div></div>'+
+  const live = d.in_use? '<span class="badge b-info" title="Kullanımda">'+ic('play')+'Kullanımda · '+esc(d.in_use_until)+'\'e kadar</span>' : '';
+  return '<div class="card dev'+(d.authorized?'':' dim')+'"><div class="dev-top"><div class="dev-ic">'+ic(deviceIcon(d.name))+'</div><div style="flex:1;min-width:0"><h4><a data-dev="'+d.id+'" title="Cihaz sayfasını aç">'+esc(d.name)+'</a></h4><div class="meta">'+esc(d.brand_model||'')+'</div><div class="meta">'+ic('building')+' '+esc(d.lab_name)+' · '+esc(d.building_room||'')+'</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">'+devBadge(d.status)+live+'</div></div>'+
     '<div class="dev-tags">'+tags.join('')+'</div>'+
     '<div class="dev-notes">'+esc(d.usage_notes||'')+'</div>'+
     '<div class="dev-foot">'+auth+'<button class="btn btn-primary btn-sm" data-book="'+d.id+'"'+(canBook?'':' disabled title="Cihaz şu anda kullanıma kapalı"')+'>'+ic('calendar')+'Randevu Al</button></div></div>';
 }
 
 /* ----- Randevu Al modali ----- */
-async function openBooking(deviceId){
+async function openBooking(deviceId, pre){
+  pre=pre||{};
+  if(!S.devices.length) await loadBase();
   const d=S.devices.find(x=>x.id===deviceId);
   if(!d) return;
+  if(d.status!=='active'){ toast('Bu cihaz şu anda kullanıma kapalı ('+d.status_label+').','warn'); return; }
   if(S.me.role==='student' && !S.advisors.length){ try{ S.advisors=await api('/api/advisors'); }catch(e){ toast(e.message,'err'); return; } }
-  const tomorrow=iso(addDays(new Date(),1));
+  const today=iso(new Date());
+  const maxDate=iso(addDays(new Date(), d.max_advance_days));
+  const defDate=pre.date || iso(addDays(new Date(),1));
   const warn = d.authorized? '' : '<div class="banner banner-warn">'+ic('alert')+'<div>Bu cihaz için yetkiniz eksik görünüyor: <b>'+esc(d.auth_problems.join(', '))+'</b>. Talebiniz sistem tarafından reddedilecektir.</div></div>';
   const advSel = S.me.role==='student'
-    ? '<label class="f"><span>Akademik danışman *</span><select class="inp" id="bkAdv"><option value="">Seçiniz…</option>'+S.advisors.map(a=>'<option value="'+a.id+'">'+esc(a.full_name)+' — '+esc(a.department||'')+'</option>').join('')+'</select></label>'
+    ? '<label class="f"><span>Akademik danışman *</span><select class="inp" id="bkAdv"><option value="">Seçiniz…</option>'+S.advisors.map(a=>'<option value="'+a.id+'"'+(S.advisors.length===1?' selected':'')+'>'+esc(a.full_name)+' — '+esc(a.department||'')+'</option>').join('')+'</select></label>'
     : '<div class="banner banner-info">'+ic('info')+'<div>Personel talepleri danışman aşamasını atlar ve doğrudan laboratuvar sorumlusu onayına gider.</div></div>';
+  const rules='En kısa '+fmtMin(d.min_minutes)+' · günde en çok '+d.max_daily_hours+' sa'+(d.weekly_max_hours?' · haftada en çok '+d.weekly_max_hours+' sa':'')+' · en fazla '+d.max_advance_days+' gün ileriye';
   const m=openModal('Randevu Al — '+d.name,
     warn+
     '<div class="info-box"><div class="kv"><span>Laboratuvar</span><div>'+esc(d.lab_name)+' ('+esc(d.building_room||'-')+')</div>'+
-    '<span>Gereksinimler</span><div>'+(d.requires_isg?'İSG eğitimi · ':'')+(d.requires_certificate?'Kullanım sertifikası · ':'')+'Günlük en çok '+d.max_daily_hours+' saat</div>'+
+    '<span>Gereksinimler</span><div>'+[d.requires_isg?'İSG eğitimi':'', d.requires_certificate?'Kullanım sertifikası':''].filter(Boolean).join(' · ')+(d.requires_isg||d.requires_certificate?'':'Yok')+'</div>'+
+    '<span>Kurallar</span><div>'+rules+'</div>'+
     '<span>Onay akışı</span><div>'+(S.me.role==='student'?'1. Danışman → 2. Lab. Sorumlusu ('+esc(d.manager_name||'-')+')':'Lab. Sorumlusu ('+esc(d.manager_name||'-')+')')+'</div></div></div>'+
-    '<div class="row"><label class="f"><span>Tarih *</span><input class="inp" type="date" id="bkDate" min="'+iso(new Date())+'" value="'+tomorrow+'"></label>'+
-    '<label class="f"><span>Başlangıç *</span><input class="inp" type="time" id="bkStart" value="09:00" step="900"></label>'+
-    '<label class="f"><span>Bitiş *</span><input class="inp" type="time" id="bkEnd" value="11:00" step="900"></label></div>'+
-    '<div class="small muted" id="bkSlots" style="margin:-4px 0 12px"></div>'+
+    '<div class="row"><label class="f"><span>Tarih *</span><input class="inp" type="date" id="bkDate" min="'+today+'" max="'+maxDate+'" value="'+defDate+'"></label>'+
+    '<label class="f"><span>Başlangıç *</span><input class="inp" type="time" id="bkStart" value="'+(pre.start||'09:00')+'" step="900"></label>'+
+    '<label class="f"><span>Bitiş *</span><input class="inp" type="time" id="bkEnd" value="'+(pre.end||toHM(toMin(pre.start||'09:00')+Math.max(60,d.min_minutes)))+'" step="900"></label></div>'+
+    '<div style="margin:-4px 0 14px"><div class="small muted" id="bkHint">Boş bir kutuya dokunarak başlangıcı seçin; daha sonraki bir kutuya dokunarak bitişi uzatın.</div>'+
+      '<div class="strip" id="bkStrip"></div><div class="strip-axis">'+Array.from({length:15},(_,i)=>'<span>'+String(7+i).padStart(2,'0')+'</span>').join('')+'</div>'+
+      '<div class="legend" style="margin-top:6px"><span><i style="background:#dff0ed"></i>Boş</span><span><i style="background:var(--teal)"></i>Seçiminiz</span><span><i style="background:#f6d9d5"></i>Dolu</span><span><i style="background:#fbe7b5"></i>Onay bekleyen talep</span></div></div>'+
+    '<label class="f"><span>Tekrar</span><select class="inp" id="bkRepeat"><option value="1">Tekrar yok (tek randevu)</option>'+Array.from({length:11},(_,i)=>'<option value="'+(i+2)+'">'+(i+2)+' hafta boyunca, her hafta aynı gün ve saatte</option>').join('')+'</select></label>'+
     advSel+
     '<label class="f"><span>Proje başlığı *</span><input class="inp" id="bkTitle" maxlength="200" placeholder="Tez / proje adı"></label>'+
-    '<label class="f"><span>Kullanım amacı</span><textarea class="inp" id="bkPurpose" maxlength="1500" placeholder="Ölçüm türü, numune sayısı, özel gereksinimler…"></textarea></label>',
+    '<label class="f"><span>Kullanım amacı</span><textarea class="inp" id="bkPurpose" maxlength="1500" placeholder="Ölçüm türü, numune sayısı, özel gereksinimler…"></textarea></label>'+
+    '<div id="bkFail"></div>',
     '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="bkSave">'+ic('send')+'Talep Gönder</button>');
   $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
-  const loadSlots=async()=>{
-    const dt=$('#bkDate').value; if(!dt){ $('#bkSlots').innerHTML=''; return; }
-    try{
-      const c=await api('/api/calendar?device_id='+d.id+'&start='+dt+'&days=1');
-      const busy=c.items.filter(i=>i.status!=='completed');
-      $('#bkSlots').innerHTML = busy.length ? 'Bu tarihte dolu saatler:<div class="slots">'+busy.map(i=>'<span class="badge '+(i.status==='approved'?'b-ok':'b-warn')+'">'+esc(i.start_time)+'–'+esc(i.end_time)+'</span>').join('')+'</div>' : ic('check2')+' Bu tarihte cihaz için kayıtlı randevu yok.';
-    }catch(e){ $('#bkSlots').textContent=''; }
+  const H0=7*60, CELL=30, N=30;
+  let busy=[], anchor=null;
+  const sel=()=>({a:toMin($('#bkStart').value||'00:00'), b:toMin($('#bkEnd').value||'00:00')});
+  const cellState=(t)=>{
+    const dt=$('#bkDate').value;
+    const now=new Date();
+    if(dt===today && t+CELL <= now.getHours()*60+now.getMinutes()) return 'past';
+    for(const it of busy){ const a=toMin(it.start_time), b=toMin(it.end_time); if(t<b && t+CELL>a) return it.status==='approved'?'busy':'pend'; }
+    return 'free';
   };
-  $('#bkDate').addEventListener('change', loadSlots); loadSlots();
-  $('#bkSave').addEventListener('click', e=>act(e.currentTarget, async ()=>{
+  const rangeFree=(a,b)=>{ for(let t=a;t<b;t+=CELL){ if(t<H0||t>=H0+N*CELL) continue; if(cellState(t)!=='free') return false; } return true; };
+  const drawStrip=()=>{
+    const {a,b}=sel();
+    let h='';
+    for(let i=0;i<N;i++){
+      const t=H0+i*CELL, stt=cellState(t);
+      const chosen = t>=a && t<b;
+      h+='<button type="button" data-t="'+t+'" class="'+(stt!=='free'?stt:'')+(chosen?' sel':'')+'" title="'+toHM(t)+'–'+toHM(t+CELL)+(stt==='busy'?' · dolu':stt==='pend'?' · onay bekleyen talep':stt==='past'?' · geçti':'')+'"'+(stt!=='free'?' disabled':'')+'></button>';
+    }
+    $('#bkStrip').innerHTML=h;
+    $$('#bkStrip button:not([disabled])').forEach(btn=>btn.addEventListener('click',()=>{
+      const t=+btn.dataset.t;
+      if(anchor!==null && t>=anchor && rangeFree(anchor,t+CELL)){
+        $('#bkEnd').value=toHM(t+CELL); anchor=null;
+        $('#bkHint').textContent='Seçim: '+$('#bkStart').value+'–'+$('#bkEnd').value+'. Değiştirmek için yeni bir başlangıç kutusuna dokunun.';
+      } else {
+        let len=Math.max(60, Math.ceil(d.min_minutes/CELL)*CELL), end=t+CELL;
+        while(end<t+len && rangeFree(t,end+CELL) && end<H0+N*CELL) end+=CELL;
+        $('#bkStart').value=toHM(t); $('#bkEnd').value=toHM(end); anchor=t;
+        $('#bkHint').textContent='Başlangıç '+toHM(t)+'. Bitişi uzatmak için daha sonraki bir kutuya dokunun.';
+      }
+      drawStrip();
+    }));
+  };
+  const loadSlots=async()=>{
+    const dt=$('#bkDate').value; busy=[];
+    if(dt){ try{ const c=await api('/api/calendar?device_id='+d.id+'&start='+dt+'&days=1'); busy=c.items.filter(i=>i.status!=='completed'); }catch(e){ busy=[]; } }
+    drawStrip();
+  };
+  $('#bkDate').addEventListener('change', ()=>{ anchor=null; loadSlots(); });
+  $('#bkStart').addEventListener('change', drawStrip);
+  $('#bkEnd').addEventListener('change', drawStrip);
+  loadSlots();
+  const send=async(btn, skip)=>act(btn, async ()=>{
     const body={device_id:d.id, date:$('#bkDate').value, start_time:$('#bkStart').value, end_time:$('#bkEnd').value,
-      project_title:$('#bkTitle').value, purpose:$('#bkPurpose').value};
+      project_title:$('#bkTitle').value, purpose:$('#bkPurpose').value, repeat_weeks:+$('#bkRepeat').value, skip_invalid:!!skip};
     if($('#bkAdv')) body.advisor_id=$('#bkAdv').value;
-    const r=await api('/api/reservations',{method:'POST', body});
-    closeModal(); toast('Randevu talebiniz oluşturuldu (#'+r.id+'). Durum: '+r.status_label+'.');
+    let r;
+    try{ r=await api('/api/reservations',{method:'POST', body}); }
+    catch(e){
+      if(e.data && e.data.failures){
+        $('#bkFail').innerHTML='<div class="banner banner-warn">'+ic('alert')+'<div><b>'+esc(e.message)+'</b><ul style="margin:6px 0 0;padding-left:18px">'+e.data.failures.map(f=>'<li>'+fmtDate(f.date)+': '+esc(f.error)+'</li>').join('')+'</ul>'+
+          (e.data.possible>0?'<button class="btn btn-primary btn-sm" id="bkSkip" style="margin-top:8px">Uygun olan '+e.data.possible+' tarihi oluştur</button>':'')+'</div></div>';
+        const sk=$('#bkSkip'); if(sk) sk.addEventListener('click',()=>send(sk,true));
+        $('#bkFail').scrollIntoView({behavior:'smooth',block:'nearest'});
+        return;
+      }
+      throw e;
+    }
+    closeModal();
+    const n=r.ids.length;
+    toast(n>1? n+' haftalık randevu talebi oluşturuldu. Durum: '+r.status_label+'.' : 'Randevu talebiniz oluşturuldu (#'+r.id+'). Durum: '+r.status_label+'.');
+    if(r.skipped && r.skipped.length) toast(r.skipped.length+' tarih uygun olmadığı için atlandı.','warn');
     await refreshCounts();
-    if(S.page==='reservations') go('reservations');
-  }));
+    if(S.page==='reservations') renderReservations();
+    else if(S.page==='device') renderDevicePage();
+  });
+  $('#bkSave').addEventListener('click', e=>send(e.currentTarget,false));
 }
 
 /* =========================================================
@@ -682,23 +878,29 @@ async function renderReservations(){
   const tabs=[['mine',role==='student'?'Randevularım':'Kendi Randevularım','calendar']];
   if(role!=='student'){ tabs.unshift(['approvals','Onay Bekleyenler','inbox']); tabs.push(['managed', role==='advisor'?'Danışmanlık Talepleri':'Tüm Talepler','list']); }
   tabs.push(['calendar','Doluluk Takvimi','clock']);
+  if(!S.resTab) S.resTab = (role!=='student' && S.counts.pending) ? 'approvals' : 'mine';
   if(!tabs.find(t=>t[0]===S.resTab)) S.resTab=tabs[0][0];
   $('#content').innerHTML='<div class="tabs" id="resTabs">'+tabs.map(t=>'<button data-t="'+t[0]+'" class="'+(S.resTab===t[0]?'active':'')+'">'+ic(t[2])+esc(t[1])+(t[0]==='approvals'&&S.counts.pending?'<span class="count">'+S.counts.pending+'</span>':'')+'</button>').join('')+'</div><div id="resBody">'+loading()+'</div>';
   $$('#resTabs button').forEach(b=>b.addEventListener('click',()=>{ S.resTab=b.dataset.t; renderReservations(); }));
   if(S.resTab==='calendar') return renderCalendar();
   const list=await api('/api/reservations?scope='+S.resTab);
+  S.resList=list;
   const box=$('#resBody');
   if(!list.length){ box.innerHTML = empty(S.resTab==='approvals'?'Onayınızı bekleyen talep yok.':'Kayıtlı randevu yok.', S.resTab==='approvals'?'check2':'calendar'); if(S.resTab==='mine') box.insertAdjacentHTML('beforeend','<div style="text-align:center"><button class="btn btn-primary" data-goto="catalog">'+ic('plus')+'Cihaz Kataloğundan Randevu Al</button></div>'); $$('[data-goto]',box).forEach(b=>b.addEventListener('click',()=>go(b.dataset.goto))); return; }
   let filterHtml='';
   if(S.resTab!=='approvals'){
-    filterHtml='<div class="toolbar"><select class="inp" id="rfSt" style="max-width:280px"><option value="">Tüm durumlar</option>'+Object.entries(RES_LABEL).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')+'</select><span class="muted small">'+list.length+' kayıt</span></div>';
+    filterHtml='<div class="toolbar"><select class="inp" id="rfSt" style="max-width:280px"><option value="">Tüm durumlar</option>'+Object.entries(RES_LABEL).map(([k,v])=>'<option value="'+k+'">'+v+'</option>').join('')+'<option value="no_show">Gelinmedi</option></select><span class="muted small">'+list.length+' kayıt</span></div>';
   }
-  box.innerHTML=filterHtml+'<div id="resList"></div>';
+  // Su an kullanimda olan veya bugun baslatilabilecek randevular ustte
+  const live=list.filter(r=>r.in_progress||r.can_start);
+  const liveHtml = S.resTab==='mine' && live.length ? live.map(r=>'<div class="live-box">'+ic(r.in_progress?'play':'clock')+'<div style="flex:1;min-width:200px"><b>'+esc(r.device_name)+'</b> · '+esc(r.start_time)+'–'+esc(r.end_time)+'<div class="small">'+(r.in_progress?'Kullanım '+esc(r.started_at.slice(11,16))+' itibarıyla sürüyor.':'Randevu saatiniz geldi; cihazın başındaysanız kullanımı başlatın.')+'</div></div>'+
+    (r.in_progress?'<button class="btn btn-navy" data-finish="'+r.id+'">'+ic('stop')+'Kullanımı Bitir</button>':'<button class="btn btn-primary" data-start="'+r.id+'">'+ic('play')+'Kullanımı Başlat</button>')+'</div>').join('') : '';
+  box.innerHTML=liveHtml+filterHtml+'<div id="resList"></div>';
   const draw=()=>{
     const f=$('#rfSt')?$('#rfSt').value:'';
-    const l=list.filter(r=>!f||r.status===f);
+    const l=list.filter(r=>!f||(f==='no_show'? r.no_show : (r.status===f && !(f==='cancelled'&&r.no_show))));
     $('#resList').innerHTML = l.length? l.map(resCard).join('') : empty('Bu durumda kayıt yok.');
-    bindResActions();
+    bindResActions(box);
   };
   if($('#rfSt')) $('#rfSt').addEventListener('change',draw);
   draw();
@@ -714,60 +916,99 @@ function steps(r){
   else if(st==='rejected'){ s2={cls:'done',icon:'check'}; s3={cls:'fail',icon:'x'}; s4={cls:'',n:'4'}; }
   else if(st==='approved'){ s2={cls:'done',icon:'check'}; s3={cls:'done',icon:'check'}; s4={cls:'now',n:'4'}; }
   else if(st==='completed'){ s2={cls:'done',icon:'check'}; s3={cls:'done',icon:'check'}; s4={cls:'done',icon:'check'}; }
+  else if(r.no_show){ s2={cls:'done',icon:'check'}; s3={cls:'done',icon:'check'}; s4={cls:'fail',icon:'x'}; }
   else { s2={cls:'',n:'2'}; s3={cls:'',n:'3'}; s4={cls:'',n:'4'}; }
   const one=(o,t,sub)=>'<div class="step '+o.cls+'"><div class="c">'+(o.icon?ic(o.icon):o.n)+'</div><div class="s"><b>'+t+'</b>'+sub+'</div></div>';
   const line=(o)=>'<div class="step-line '+(o.cls==='done'?'done':'')+'"></div>';
+  let lastT='Kullanım', lastS='Başlatılmadı';
+  if(st==='completed'){ lastT='Tamamlandı'; lastS=r.actual_hours+' saat'; }
+  else if(r.no_show){ lastT='Gelinmedi'; lastS='Kullanım başlatılmadı'; }
+  else if(r.in_progress){ lastT='Kullanımda'; lastS='Başladı '+esc(r.started_at.slice(11,16)); }
   return '<div class="steps">'+one(s1,'Talep','Oluşturuldu')+line(s2)+
     one(s2,'1. Danışman', advSkipped?'Gerekmiyor':esc(r.advisor_name||'-'))+line(s3)+
     one(s3,'2. Lab. Sorumlusu',esc(r.manager_name||'-'))+line(s4)+
-    one(s4, st==='completed'?'Tamamlandı':'Kullanım', st==='completed'?(r.actual_hours+' saat'):(st==='cancelled'?'İptal edildi':'Rapor bekleniyor'))+'</div>';
+    one(s4,lastT,lastS)+'</div>';
 }
 function resCard(r){
   const notes=[];
   if(r.advisor_note) notes.push('<div class="note"><b>Danışman notu:</b> '+esc(r.advisor_note)+'</div>');
   if(r.lab_note) notes.push('<div class="note"><b>Lab. sorumlusu notu:</b> '+esc(r.lab_note)+'</div>');
   if(r.usage_report) notes.push('<div class="note"><b>Kullanım raporu ('+esc(r.actual_hours)+' sa):</b> '+esc(r.usage_report)+'</div>');
+  const series = r.series_count>1;
   let actions='';
   if(r.can_advisor_decide || r.can_lab_decide){
     const stage=r.can_advisor_decide?'advisor':'lab';
     actions='<div class="res-actions"><textarea class="inp" data-note="'+r.id+'" placeholder="Gerekçe / not (reddetmede zorunlu)" maxlength="1000"></textarea>'+
       '<button class="btn btn-primary" data-decide="approve" data-stage="'+stage+'" data-id="'+r.id+'">'+ic('check')+'Onayla</button>'+
-      '<button class="btn btn-danger" data-decide="reject" data-stage="'+stage+'" data-id="'+r.id+'">'+ic('x')+'Reddet</button></div>';
-  } else if(r.can_cancel || r.can_complete){
-    actions='<div class="res-actions">'+(r.can_complete?'<button class="btn btn-navy btn-sm" data-complete="'+r.id+'">'+ic('file')+'Tamamla ve Rapor Gir</button>':'')+
-      (r.can_cancel?'<button class="btn btn-danger btn-sm" data-cancel="'+r.id+'">'+ic('x')+'Talebi İptal Et</button>':'')+'</div>';
+      '<button class="btn btn-danger" data-decide="reject" data-stage="'+stage+'" data-id="'+r.id+'">'+ic('x')+'Reddet</button></div>'+
+      (series?'<label class="check small" style="margin:8px 0 0"><input type="checkbox" data-series="'+r.id+'" checked> Kararı serideki aynı aşamada bekleyen bütün haftalara uygula ('+r.series_count+' haftalık seri)</label>':'');
+  } else {
+    const btns=[];
+    if(r.can_start) btns.push('<button class="btn btn-primary btn-sm" data-start="'+r.id+'">'+ic('play')+'Kullanımı Başlat</button>');
+    if(r.in_progress && r.can_complete) btns.push('<button class="btn btn-navy btn-sm" data-finish="'+r.id+'">'+ic('stop')+'Kullanımı Bitir ve Rapor Gir</button>');
+    else if(r.can_complete) btns.push('<button class="btn btn-navy btn-sm" data-complete="'+r.id+'">'+ic('file')+'Tamamla ve Rapor Gir</button>');
+    if(r.can_cancel) btns.push('<button class="btn btn-danger btn-sm" data-cancel="'+r.id+'">'+ic('x')+(r.status==='approved'?'Randevuyu İptal Et':'Talebi İptal Et')+'</button>');
+    const hint = (r.status==='approved' && !r.can_start && !r.started_at && r.start_block && r.user_id===S.me.id && r.date===iso(new Date())) ? '<span class="small muted">'+esc(r.start_block)+'</span>' : '';
+    if(btns.length||hint) actions='<div class="res-actions" style="align-items:center">'+btns.join('')+hint+'</div>';
   }
   const showUser = r.user_id!==S.me.id;
-  return '<div class="card res"><div class="res-head"><div style="flex:1;min-width:220px"><h4>'+esc(r.device_name)+' <span class="muted small" style="font-weight:500">#'+r.id+'</span></h4><div class="small muted">'+esc(r.lab_name)+'</div></div>'+
-    '<div class="when">'+ic('calendar')+fmtDate(r.date)+' · '+DAYS[parseISO(r.date).getDay()]+' '+ic('clock')+esc(r.start_time)+'–'+esc(r.end_time)+'</div>'+resBadge(r.status)+'</div>'+
+  const badge = r.no_show ? '<span class="badge b-bad">'+ic('xc')+'Gelinmedi</span>' : r.in_progress ? '<span class="badge b-info">'+ic('play')+'Kullanımda</span>' : resBadge(r.status);
+  return '<div class="card res"><div class="res-head"><div style="flex:1;min-width:220px"><h4>'+esc(r.device_name)+' <span class="muted small" style="font-weight:500">#'+r.id+'</span> '+(series?'<span class="tag">'+ic('repeat')+r.series_count+' haftalık seri</span>':'')+'</h4><div class="small muted">'+esc(r.lab_name)+'</div></div>'+
+    '<div class="when">'+ic('calendar')+fmtDate(r.date)+' · '+DAYS[parseISO(r.date).getDay()]+' '+ic('clock')+esc(r.start_time)+'–'+esc(r.end_time)+'</div>'+badge+'</div>'+
     '<div class="res-body">'+(showUser?'<div><span>Talep eden:</span> <b>'+esc(r.user_name)+'</b></div>':'')+'<div><span>Proje:</span> '+esc(r.project_title)+'</div>'+(r.purpose?'<div><span>Amaç:</span> '+esc(r.purpose)+'</div>':'')+'<div><span>Oluşturulma:</span> '+fmtDT(r.created_at)+'</div></div>'+
-    (r.status!=='cancelled'?steps(r):'')+
+    (r.status!=='cancelled'||r.no_show?steps(r):'')+
     (notes.length?'<div class="res-notes">'+notes.join('')+'</div>':'')+actions+'</div>';
 }
-function bindResActions(){
-  $$('[data-decide]').forEach(b=>b.addEventListener('click',()=>act(b, async ()=>{
+function findRes(id){ return (S.resList||[]).find(x=>x.id===+id) || null; }
+function afterResChange(){ return refreshCounts().then(()=>{ if(S.page==='device') renderDevicePage(); else renderReservations(); }); }
+function bindResActions(root){
+  root=root||document;
+  $$('[data-decide]',root).forEach(b=>b.addEventListener('click',()=>act(b, async ()=>{
     const id=b.dataset.id, note=$('[data-note="'+id+'"]').value.trim();
     if(b.dataset.decide==='reject' && !note){ $('[data-note="'+id+'"]').focus(); throw new Error('Reddetme işleminde gerekçe notu zorunludur.'); }
-    await api('/api/reservations/'+id+'/'+b.dataset.stage,{method:'POST', body:{decision:b.dataset.decide, note}});
-    toast(b.dataset.decide==='approve'? (b.dataset.stage==='advisor'?'Talep onaylandı ve laboratuvar sorumlusuna iletildi.':'Randevu onaylandı.') : 'Talep reddedildi.');
-    await refreshCounts(); renderReservations();
+    const sc=$('[data-series="'+id+'"]');
+    const r=await api('/api/reservations/'+id+'/'+b.dataset.stage,{method:'POST', body:{decision:b.dataset.decide, note, series:!!(sc&&sc.checked)}});
+    const n=r.count>1?' ('+r.count+' hafta)':'';
+    toast(b.dataset.decide==='approve'? (b.dataset.stage==='advisor'?'Talep onaylandı ve laboratuvar sorumlusuna iletildi'+n+'.':'Randevu onaylandı'+n+'.') : 'Talep reddedildi'+n+'.');
+    await afterResChange();
   })));
-  $$('[data-cancel]').forEach(b=>b.addEventListener('click',()=>{
-    if(!confirm('Bu randevu talebini iptal etmek istediğinize emin misiniz?')) return;
-    act(b, async ()=>{ await api('/api/reservations/'+b.dataset.cancel+'/cancel',{method:'POST', body:{}}); toast('Randevu iptal edildi.'); await refreshCounts(); renderReservations(); });
+  $$('[data-cancel]',root).forEach(b=>b.addEventListener('click',()=>{
+    const r=findRes(b.dataset.cancel);
+    const doCancel=(series)=>act(b, async ()=>{ const x=await api('/api/reservations/'+b.dataset.cancel+'/cancel',{method:'POST', body:{series}}); closeModal(); toast(x.count>1? x.count+' randevu iptal edildi.' : 'Randevu iptal edildi.'); await afterResChange(); });
+    if(r && r.series_count>1){
+      const m=openModal('Randevuyu İptal Et','<p>Bu randevu '+r.series_count+' haftalık bir serinin parçası. Ne yapmak istersiniz?</p>',
+        '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-danger" id="cxOne">Yalnızca bu tarihi</button><button class="btn btn-danger" id="cxAll">Bu ve sonraki tüm haftaları</button>');
+      $$('[data-close]',m).forEach(x=>x.addEventListener('click',closeModal));
+      $('#cxOne').addEventListener('click',()=>doCancel(false)); $('#cxAll').addEventListener('click',()=>doCancel(true));
+    } else if(confirm('Bu randevuyu iptal etmek istediğinize emin misiniz?')) doCancel(false);
   }));
-  $$('[data-complete]').forEach(b=>b.addEventListener('click',()=>openComplete(+b.dataset.complete)));
+  $$('[data-start]',root).forEach(b=>b.addEventListener('click',()=>act(b, async ()=>{
+    await api('/api/reservations/'+b.dataset.start+'/start',{method:'POST', body:{}});
+    toast('Kullanım başlatıldı. İşiniz bitince "Kullanımı Bitir" düğmesine basın.');
+    await afterResChange();
+  })));
+  $$('[data-finish]',root).forEach(b=>b.addEventListener('click',()=>openComplete(+b.dataset.finish, findRes(b.dataset.finish))));
+  $$('[data-complete]',root).forEach(b=>b.addEventListener('click',()=>openComplete(+b.dataset.complete, findRes(b.dataset.complete))));
 }
-function openComplete(id){
-  const m=openModal('Kullanımı Tamamla — #'+id,
-    '<div class="row"><label class="f"><span>Gerçekleşen kullanım süresi (saat) *</span><input class="inp" type="number" id="cpH" min="0.25" max="24" step="0.25" value="1"></label></div>'+
+function openComplete(id, r){
+  let hours=1;
+  if(r){
+    if(r.started_at){ const st=new Date(r.started_at.replace(' ','T')); hours=Math.max(0.25, Math.round((Date.now()-st.getTime())/3600000*4)/4); }
+    else hours=Math.max(0.25,(toMin(r.end_time)-toMin(r.start_time))/60);
+  }
+  const early = r && r.started_at && r.date===iso(new Date()) && toMin(r.end_time) > new Date().getHours()*60+new Date().getMinutes();
+  const m=openModal((r&&r.started_at?'Kullanımı Bitir':'Kullanımı Tamamla')+' — #'+id,
+    (early?'<div class="banner banner-info">'+ic('info')+'<div>Randevu bitişinden önce bitiriyorsunuz; kalan süre ('+toHM(new Date().getHours()*60+new Date().getMinutes()+1)+'–'+esc(r.end_time)+') diğer kullanıcılara açılacak.</div></div>':'')+
+    '<div class="row"><label class="f"><span>Gerçekleşen kullanım süresi (saat) *</span><input class="inp" type="number" id="cpH" min="0.25" max="24" step="0.25" value="'+hours+'"></label></div>'+
+    (r&&r.started_at?'<div class="small muted" style="margin:-6px 0 12px">Başlangıç: '+esc(r.started_at.slice(11,16))+' · süre otomatik hesaplandı, gerekirse düzeltin.</div>':'')+
     '<label class="f"><span>Kullanım raporu ve cihaz durum notu *</span><textarea class="inp" id="cpR" maxlength="2000" placeholder="Yapılan işlem, numune sayısı, cihazın teslim durumu…"></textarea></label>'+
-    '<label class="check"><input type="checkbox" id="cpP"> Cihazda arıza / sorun gözlemledim (laboratuvar sorumlusu bilgilendirilir)</label>',
-    '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="cpSave">'+ic('check')+'Tamamla</button>');
+    '<label class="check"><input type="checkbox" id="cpP"> Cihazda arıza / sorun gözlemledim (arıza kaydı açılır, laboratuvar sorumlusu bilgilendirilir)</label>',
+    '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-primary" id="cpSave">'+ic('check')+'Kaydet ve Bitir</button>');
   $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
   $('#cpSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
-    await api('/api/reservations/'+id+'/complete',{method:'POST', body:{actual_hours:$('#cpH').value, usage_report:$('#cpR').value, device_problem:$('#cpP').checked}});
-    closeModal(); toast('Kullanım raporu kaydedildi, randevu tamamlandı.'); renderReservations();
+    const x=await api('/api/reservations/'+id+'/complete',{method:'POST', body:{actual_hours:$('#cpH').value, usage_report:$('#cpR').value, device_problem:$('#cpP').checked}});
+    closeModal(); toast('Kullanım raporu kaydedildi, randevu tamamlandı.'+(x.freed?' Kalan süre diğer kullanıcılara açıldı.':''));
+    await afterResChange();
   }));
 }
 
@@ -777,16 +1018,19 @@ async function renderCalendar(){
   const c=S.cal;
   if(!c.start){ const t=new Date(); const dow=(t.getDay()+6)%7; c.start=iso(addDays(t,-dow)); }
   if(!c.device && S.devices.length) c.device=String((S.devices.find(d=>d.status==='active')||S.devices[0]).id);
+  const dev=S.devices.find(d=>String(d.id)===c.device);
   const box=$('#resBody');
   box.innerHTML='<div class="card"><div class="card-h" style="flex-wrap:wrap">'+
-    '<select class="inp" id="calDev" style="max-width:340px">'+S.devices.map(d=>'<option value="'+d.id+'"'+(String(d.id)===c.device?' selected':'')+'>'+esc(d.name)+' — '+esc(d.lab_code)+'</option>').join('')+'</select>'+
+    '<select class="inp" id="calDev" style="max-width:340px">'+S.devices.map(d=>'<option value="'+d.id+'"'+(String(d.id)===c.device?' selected':'')+'>'+esc(d.name)+' — '+esc(d.lab_code)+(d.status!=='active'?' ('+esc(d.status_label)+')':'')+'</option>').join('')+'</select>'+
     '<div class="r" style="flex-wrap:wrap">'+
       '<div style="display:flex;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden"><button class="btn btn-sm '+(c.mode==='day'?'btn-navy':'')+'" style="border-radius:0" data-mode="day">Günlük</button><button class="btn btn-sm '+(c.mode==='week'?'btn-navy':'')+'" style="border-radius:0" data-mode="week">Haftalık</button></div>'+
       '<button class="btn btn-ghost btn-sm" id="calPrev" aria-label="Önceki">'+ic('chev_l')+'</button><button class="btn btn-ghost btn-sm" id="calToday">Bugün</button><button class="btn btn-ghost btn-sm" id="calNext" aria-label="Sonraki">'+ic('chev_r')+'</button>'+
       '<input class="inp" type="date" id="calDate" style="width:auto" value="'+c.start+'">'+
-      '<button class="btn btn-primary btn-sm" id="calBook">'+ic('plus')+'Randevu Al</button>'+
-    '</div></div><div class="card-b"><div id="calGrid">'+loading()+'</div>'+
-    '<div class="legend"><span><i style="background:#d9efec;border-left:3px solid var(--teal)"></i>Onaylı</span><span><i style="background:#fff1cf;border-left:3px solid #e0a106"></i>Onay bekliyor</span><span><i style="background:#e8ecf1;border-left:3px solid #8a9bb0"></i>Tamamlandı</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--navy)"></i>Sizin randevunuz</span></div></div></div>';
+      '<button class="btn btn-primary btn-sm" id="calBook"'+(dev&&dev.status==='active'?'':' disabled')+'>'+ic('plus')+'Randevu Al</button>'+
+    '</div></div><div class="card-b">'+
+    (dev&&dev.status==='active'?'<div class="small muted" style="margin-bottom:8px">'+ic('info')+' Takvimde boş bir alana tıklayın ya da sürükleyerek saat aralığı seçin; randevu formu o saatle açılır. Telefonda dokunmanız yeterli.</div>':'<div class="banner banner-warn">'+ic('alert')+'<div>Bu cihaz şu anda '+esc(dev?dev.status_label:'')+' durumunda; randevu alınamaz.</div></div>')+
+    '<div id="calGrid">'+loading()+'</div>'+
+    '<div class="legend"><span><i style="background:#d9efec;border-left:3px solid var(--teal)"></i>Onaylı</span><span><i style="background:#c9ece4;border-left:3px solid #0f6b61"></i>Şu an kullanımda</span><span><i style="background:#fff1cf;border-left:3px solid #e0a106"></i>Onay bekliyor</span><span><i style="background:#e8ecf1;border-left:3px solid #8a9bb0"></i>Tamamlandı</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--navy)"></i>Sizin randevunuz</span></div></div></div>';
   const days=c.mode==='week'?7:1;
   $('#calDev').addEventListener('change',e=>{ c.device=e.target.value; renderCalendar(); });
   $$('[data-mode]').forEach(b=>b.addEventListener('click',()=>{ c.mode=b.dataset.mode; if(c.mode==='week'){ const t=parseISO(c.start); c.start=iso(addDays(t,-((t.getDay()+6)%7))); } renderCalendar(); }));
@@ -807,13 +1051,13 @@ async function renderCalendar(){
   html+='</div>';
   for(let i=0;i<days;i++){
     const s=iso(addDays(parseISO(c.start),i));
-    html+='<div class="cal-col'+(s===today?' today':'')+'" style="height:'+height+'px">';
+    html+='<div class="cal-col'+(s===today?' today':'')+'" data-date="'+s+'" style="height:'+height+'px">';
     data.items.filter(x=>x.date===s).forEach(ev=>{
       const a=Math.max(toMin(ev.start_time),H0*60), b=Math.min(toMin(ev.end_time),H1*60);
       if(b<=a) return;
       const top=(a-H0*60)*PX, hgt=Math.max((b-a)*PX-2,18);
       const who= ev.user_name? esc(ev.user_name) : 'Dolu';
-      html+='<div class="ev ev-'+ev.status+(ev.mine?' mine':'')+'" style="top:'+top+'px;height:'+hgt+'px" title="'+esc(ev.start_time+'–'+ev.end_time+' · '+ev.status_label+(ev.project_title?' · '+ev.project_title:''))+'"><b>'+esc(ev.start_time)+'–'+esc(ev.end_time)+'</b>'+who+(ev.project_title&&hgt>40?'<div>'+esc(ev.project_title)+'</div>':'')+'</div>';
+      html+='<div class="ev ev-'+ev.status+(ev.mine?' mine':'')+(ev.in_progress?' live':'')+'" style="top:'+top+'px;height:'+hgt+'px" title="'+esc(ev.start_time+'–'+ev.end_time+' · '+(ev.in_progress?'Şu an kullanımda':ev.status_label)+(ev.project_title?' · '+ev.project_title:''))+'"><b>'+esc(ev.start_time)+'–'+esc(ev.end_time)+'</b>'+who+(ev.project_title&&hgt>40?'<div>'+esc(ev.project_title)+'</div>':'')+'</div>';
     });
     html+='</div>';
   }
@@ -821,6 +1065,30 @@ async function renderCalendar(){
   const outside=data.items.filter(x=>toMin(x.end_time)<=H0*60||toMin(x.start_time)>=H1*60);
   if(outside.length) html+='<div class="small muted" style="margin-top:8px">07:00–22:00 dışındaki randevular: '+outside.map(x=>fmtDate(x.date)+' '+esc(x.start_time)+'–'+esc(x.end_time)).join(', ')+'</div>';
   $('#calGrid').innerHTML=html;
+  if(!dev || dev.status!=='active') return;
+  // Takvimde tiklayarak / surukleyerek saat secimi
+  const snap=(col,clientY)=>{ const r=col.getBoundingClientRect(); const y=Math.max(0,Math.min(height-1,clientY-r.top)); return H0*60+Math.floor(y/PX/30)*30; };
+  $$('.cal-col',$('#calGrid')).forEach(col=>{
+    let st=null, cur=null, ghost=null, ptype='mouse', moved=false;
+    const drawGhost=()=>{ const a=Math.min(st,cur), b=Math.max(st,cur)+30; if(!ghost){ ghost=document.createElement('div'); ghost.className='cal-ghost'; col.appendChild(ghost); } ghost.style.top=((a-H0*60)*PX)+'px'; ghost.style.height=((b-a)*PX-2)+'px'; ghost.textContent=toHM(a)+'–'+toHM(b); };
+    col.addEventListener('pointerdown',e=>{
+      if(e.target.closest('.ev')||e.button>0) return;
+      ptype=e.pointerType; st=cur=snap(col,e.clientY); moved=false;
+      if(ptype==='mouse'){ col.setPointerCapture(e.pointerId); drawGhost(); e.preventDefault(); }
+    });
+    col.addEventListener('pointermove',e=>{ if(st===null||ptype!=='mouse') return; const t=snap(col,e.clientY); if(t!==cur){ cur=t; moved=true; drawGhost(); } });
+    const finish=e=>{
+      if(st===null) return;
+      if(ptype!=='mouse' && e.type==='pointercancel'){ st=null; return; }
+      const a=Math.min(st,cur);
+      let b=Math.max(st,cur)+30;
+      if(!moved) b=a+Math.max(60, Math.ceil(dev.min_minutes/30)*30);
+      st=null; if(ghost){ ghost.remove(); ghost=null; }
+      openBooking(dev.id,{date:col.dataset.date, start:toHM(a), end:toHM(Math.min(b,23*60+59))});
+    };
+    col.addEventListener('pointerup',finish);
+    col.addEventListener('pointercancel',e=>{ st=null; if(ghost){ ghost.remove(); ghost=null; } });
+  });
 }
 
 /* =========================================================
@@ -828,24 +1096,27 @@ async function renderCalendar(){
    ========================================================= */
 async function renderLabOps(){
   await loadBase();
-  const tabs=[['devices','Cihaz Durumları','micro'],['newdev','Yeni Cihaz Ekle','plus'],['certs','Kullanım Sertifikaları','award']];
-  $('#content').innerHTML='<div class="tabs" id="labTabs">'+tabs.map(t=>'<button data-t="'+t[0]+'" class="'+(S.labTab===t[0]?'active':'')+'">'+ic(t[2])+t[1]+'</button>').join('')+'</div><div id="labBody">'+loading()+'</div>';
+  let openIssues=0;
+  try{ openIssues=(await api('/api/issues')).filter(i=>i.can_resolve).length; }catch(e){ openIssues=0; }
+  const tabs=[['devices','Cihaz Durumları','micro'],['newdev','Yeni Cihaz Ekle','plus'],['certs','Kullanım Sertifikaları','award'],['issues','Arıza Bildirimleri','bug'],['qr','QR Etiketleri','qr']];
+  $('#content').innerHTML='<div class="tabs" id="labTabs">'+tabs.map(t=>'<button data-t="'+t[0]+'" class="'+(S.labTab===t[0]?'active':'')+'">'+ic(t[2])+t[1]+(t[0]==='issues'&&openIssues?'<span class="count" style="background:var(--bad)">'+openIssues+'</span>':'')+'</button>').join('')+'</div><div id="labBody">'+loading()+'</div>';
   $$('#labTabs button').forEach(b=>b.addEventListener('click',()=>{ S.labTab=b.dataset.t; renderLabOps(); }));
   const managed=S.devices.filter(d=>d.can_manage);
   const myLabs=S.labs.filter(l=>S.me.role==='admin'||l.manager_id===S.me.id);
   const box=$('#labBody');
   if(S.labTab==='devices'){
     if(!managed.length){ box.innerHTML=empty('Sorumlusu olduğunuz laboratuvarda cihaz yok.','micro'); return; }
-    box.innerHTML='<div class="card"><div class="card-h">'+ic('micro')+'<h3>Sorumlu Olduğunuz Cihazlar</h3><span class="r muted small">Durum değişikliği anında kaydedilir</span></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Cihaz</th><th>Laboratuvar</th><th>Gereksinim</th><th>Günlük Azami</th><th>Durum</th><th></th></tr></thead><tbody>'+
-      managed.map(d=>'<tr><td><b>'+esc(d.name)+'</b><div class="small muted">'+esc(d.brand_model||'')+(d.serial_no?' · SN '+esc(d.serial_no):'')+'</div></td><td>'+esc(d.lab_name)+'</td><td>'+(d.requires_isg?'<span class="tag">İSG</span> ':'')+(d.requires_certificate?'<span class="tag">Sertifika</span>':'')+(!d.requires_isg&&!d.requires_certificate?'<span class="muted small">Yok</span>':'')+'</td><td>'+d.max_daily_hours+' sa</td>'+
+    box.innerHTML='<div class="card"><div class="card-h">'+ic('micro')+'<h3>Sorumlu Olduğunuz Cihazlar</h3><span class="r muted small">Durum değişikliği anında kaydedilir</span></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Cihaz</th><th>Laboratuvar</th><th>Gereksinim</th><th>Randevu Kuralları</th><th>Durum</th><th></th></tr></thead><tbody>'+
+      managed.map(d=>'<tr><td><b>'+esc(d.name)+'</b><div class="small muted">'+esc(d.brand_model||'')+(d.serial_no?' · SN '+esc(d.serial_no):'')+'</div></td><td>'+esc(d.lab_name)+'</td><td>'+(d.requires_isg?'<span class="tag">İSG</span> ':'')+(d.requires_certificate?'<span class="tag">Sertifika</span>':'')+(!d.requires_isg&&!d.requires_certificate?'<span class="muted small">Yok</span>':'')+'</td><td class="small">En az '+fmtMin(d.min_minutes)+' · günde '+d.max_daily_hours+' sa'+(d.weekly_max_hours?' · haftada '+d.weekly_max_hours+' sa':'')+'<br><span class="muted">'+d.max_advance_days+' gün ileriye'+(d.in_use?' · <b style="color:var(--info)">şu an kullanımda</b>':'')+(d.open_issues?' · <b style="color:var(--bad)">'+d.open_issues+' açık arıza</b>':'')+'</span></td>'+
         '<td><select class="inp" data-status="'+d.id+'" style="min-width:130px"><option value="active"'+(d.status==='active'?' selected':'')+'>Aktif</option><option value="maintenance"'+(d.status==='maintenance'?' selected':'')+'>Bakımda</option><option value="broken"'+(d.status==='broken'?' selected':'')+'>Arızalı</option></select></td>'+
-        '<td><button class="btn btn-ghost btn-sm" data-edit="'+d.id+'">'+ic('edit')+'Düzenle</button></td></tr>').join('')+'</tbody></table></div></div>';
+        '<td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" data-edit="'+d.id+'">'+ic('edit')+'Düzenle</button> <button class="btn btn-ghost btn-sm" data-qr="'+d.id+'" title="QR etiketi">'+ic('qr')+'</button></td></tr>').join('')+'</tbody></table></div></div>';
     $$('[data-status]').forEach(s=>s.addEventListener('change',()=>act(s, async ()=>{
       await api('/api/devices/'+s.dataset.status,{method:'PATCH', body:{status:s.value}});
       toast('Cihaz durumu "'+s.options[s.selectedIndex].text+'" olarak güncellendi.');
       const d=S.devices.find(x=>x.id===+s.dataset.status); if(d) d.status=s.value;
     })));
     $$('[data-edit]').forEach(b=>b.addEventListener('click',()=>openDeviceEdit(S.devices.find(x=>x.id===+b.dataset.edit))));
+    $$('[data-qr]').forEach(b=>b.addEventListener('click',()=>openQr(S.devices.find(x=>x.id===+b.dataset.qr))));
   } else if(S.labTab==='newdev'){
     if(!myLabs.length){ box.innerHTML=empty('Sorumlusu olduğunuz laboratuvar yok.','building'); return; }
     box.innerHTML='<div class="card" style="max-width:760px"><div class="card-h">'+ic('plus')+'<h3>Yeni Cihaz Ekle</h3></div><div class="card-b">'+deviceForm(null,myLabs)+'<button class="btn btn-primary" id="ndSave">'+ic('plus')+'Cihazı Kaydet</button></div></div>';
@@ -853,6 +1124,31 @@ async function renderLabOps(){
       await api('/api/devices',{method:'POST', body:readDeviceForm(true)});
       toast('Cihaz eklendi.'); S.labTab='devices'; renderLabOps();
     }));
+  } else if(S.labTab==='issues'){
+    const issues=await api('/api/issues');
+    const mine=issues.filter(i=>S.me.role==='admin'||myLabs.some(l=>l.manager_id===i.manager_id)||i.can_resolve);
+    box.innerHTML='<div class="toolbar"><select class="inp" id="isF" style="max-width:220px"><option value="open">Açık bildirimler</option><option value="resolved">Kapatılanlar</option><option value="">Tümü</option></select><span class="muted small">Kullanıcıların cihaz sayfasından veya kullanım raporundan bildirdiği sorunlar</span></div><div id="isList"></div>';
+    const draw=()=>{
+      const f=$('#isF').value; const l=mine.filter(i=>!f||i.status===f);
+      $('#isList').innerHTML = l.length ? l.map(i=>'<div class="card res"><div class="res-head"><div style="flex:1;min-width:200px"><h4>'+esc(i.device_name)+' <span class="muted small" style="font-weight:500">#'+i.id+'</span></h4><div class="small muted">'+esc(i.lab_name)+' · Bildiren: '+esc(i.user_name)+' · '+fmtDT(i.created_at)+'</div></div>'+devBadge(i.device_status)+' '+(i.status==='open'?'<span class="badge b-bad">'+ic('bug')+'Açık</span>':'<span class="badge b-ok">'+ic('check2')+'Kapatıldı</span>')+'</div>'+
+        '<div class="note" style="margin-top:10px">'+esc(i.description)+'</div>'+
+        (i.resolution_note?'<div class="note" style="margin-top:6px"><b>Çözüm ('+esc(i.resolved_by_name||'')+', '+fmtDT(i.resolved_at)+'):</b> '+esc(i.resolution_note)+'</div>':'')+
+        (i.can_resolve?'<div class="res-actions"><textarea class="inp" data-isnote="'+i.id+'" placeholder="Yapılan işlem / çözüm notu (zorunlu)" maxlength="1000"></textarea><button class="btn btn-primary" data-resolve="'+i.id+'">'+ic('check')+'Çözüldü Olarak Kapat</button><button class="btn btn-ghost" data-godev="'+i.device_id+'">Cihaz durumunu değiştir</button></div>':'')+'</div>').join('') : empty(f==='open'?'Açık arıza bildirimi yok.':'Kayıt yok.','check2');
+      $$('[data-resolve]').forEach(b=>b.addEventListener('click',()=>act(b, async ()=>{
+        const note=$('[data-isnote="'+b.dataset.resolve+'"]').value.trim();
+        if(!note) throw new Error('Çözüm notu zorunludur.');
+        await api('/api/issues/'+b.dataset.resolve,{method:'PATCH', body:{resolution_note:note}});
+        toast('Arıza bildirimi kapatıldı, bildiren kişiye haber verildi.'); renderLabOps();
+      })));
+      $$('[data-godev]').forEach(b=>b.addEventListener('click',()=>{ S.labTab='devices'; renderLabOps(); }));
+    };
+    $('#isF').addEventListener('change',draw); draw();
+  } else if(S.labTab==='qr'){
+    if(!managed.length){ box.innerHTML=empty('Sorumlusu olduğunuz laboratuvarda cihaz yok.','micro'); return; }
+    box.innerHTML='<div class="banner banner-info">'+ic('info')+'<div>Etiketleri yazdırıp cihazların üzerine yapıştırın. Kullanıcı telefonuyla okuttuğunda (kampüs ağı / VPN üzerinden) cihazın sayfası açılır: o günün doluluğu, randevu alma, kullanımı başlatma ve arıza bildirme. Adres: <code>'+esc(qrBase())+'</code></div></div>'+
+      '<div class="toolbar"><button class="btn btn-navy" id="qrAll">'+ic('printer')+'Tüm Etiketleri Yazdır ('+managed.length+')</button></div>'+
+      '<div style="display:flex;flex-wrap:wrap">'+managed.map(d=>qrLabel(d)).join('')+'</div>';
+    $('#qrAll').addEventListener('click',()=>printLabels(managed));
   } else {
     const users=await api('/api/users');
     const certs=await api('/api/certificates');
@@ -883,21 +1179,37 @@ async function renderLabOps(){
     }));
   }
 }
+function qrBase(){ return location.origin+location.pathname; }
+function qrUrl(id){ return qrBase()+'#cihaz/'+id; }
+function qrLabel(d){ return '<div class="qr-label"><span class="qr-brand">LABNET</span>'+QR.svg(qrUrl(d.id),150)+'<b>'+esc(d.name)+'</b><small>'+esc(d.lab_name)+(d.serial_no?' · SN '+esc(d.serial_no):'')+'</small><small>Randevu, kullanım ve arıza bildirimi için okutun</small></div>'; }
+function printLabels(devs){
+  $('#printArea').innerHTML='<div style="display:flex;flex-wrap:wrap;font-family:Segoe UI,Arial,sans-serif">'+devs.map(qrLabel).join('')+'</div>';
+  setTimeout(()=>{ window.print(); }, 50);
+}
+function openQr(d){
+  const m=openModal('QR Etiketi — '+d.name,'<div style="text-align:center">'+qrLabel(d)+'<div class="small muted" style="margin-top:8px">'+esc(qrUrl(d.id))+'</div></div>',
+    '<button class="btn btn-ghost" data-close>Kapat</button><button class="btn btn-navy" id="qrPrint">'+ic('printer')+'Yazdır</button>');
+  $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
+  $('#qrPrint').addEventListener('click',()=>printLabels([d]));
+}
 function deviceForm(d, labs){
-  d=d||{status:'active',max_daily_hours:8,requires_isg:1,requires_certificate:0};
+  d=d||{status:'active',max_daily_hours:8,requires_isg:1,requires_certificate:0,min_minutes:30,max_advance_days:60,weekly_max_hours:0};
   return (labs?'<label class="f"><span>Laboratuvar *</span><select class="inp" id="dfLab">'+labs.map(l=>'<option value="'+l.id+'">'+esc(l.name)+'</option>').join('')+'</select></label>':'')+
     '<div class="row"><label class="f"><span>Cihaz adı *</span><input class="inp" id="dfName" maxlength="150" value="'+esc(d.name||'')+'"></label>'+
     '<label class="f"><span>Marka / Model</span><input class="inp" id="dfModel" maxlength="150" value="'+esc(d.brand_model||'')+'"></label></div>'+
     '<div class="row"><label class="f"><span>Seri No</span><input class="inp" id="dfSerial" maxlength="80" value="'+esc(d.serial_no||'')+'"></label>'+
     '<label class="f"><span>Durum</span><select class="inp" id="dfStatus"><option value="active"'+(d.status==='active'?' selected':'')+'>Aktif</option><option value="maintenance"'+(d.status==='maintenance'?' selected':'')+'>Bakımda</option><option value="broken"'+(d.status==='broken'?' selected':'')+'>Arızalı</option></select></label>'+
     '<label class="f"><span>Günlük azami saat</span><input class="inp" type="number" id="dfMax" min="1" max="24" value="'+esc(d.max_daily_hours)+'"></label></div>'+
+    '<div class="row"><label class="f"><span>En kısa randevu (dakika)</span><input class="inp" type="number" id="dfMin" min="5" max="1440" step="5" value="'+esc(d.min_minutes==null?30:d.min_minutes)+'"></label>'+
+    '<label class="f"><span>En fazla kaç gün ileriye</span><input class="inp" type="number" id="dfAdv" min="1" max="365" value="'+esc(d.max_advance_days==null?60:d.max_advance_days)+'"></label>'+
+    '<label class="f"><span>Haftalık azami saat (0 = sınırsız)</span><input class="inp" type="number" id="dfWeek" min="0" max="168" value="'+esc(d.weekly_max_hours==null?0:d.weekly_max_hours)+'"></label></div>'+
     '<label class="check"><input type="checkbox" id="dfIsg"'+(d.requires_isg?' checked':'')+'> İSG eğitimi gerektirir</label>'+
     '<label class="check"><input type="checkbox" id="dfCert"'+(d.requires_certificate?' checked':'')+'> Kullanım sertifikası gerektirir</label>'+
     '<label class="f"><span>Kullanım notları</span><textarea class="inp" id="dfNotes" maxlength="1500">'+esc(d.usage_notes||'')+'</textarea></label>';
 }
 function readDeviceForm(withLab){
   const b={name:$('#dfName').value, brand_model:$('#dfModel').value, serial_no:$('#dfSerial').value, status:$('#dfStatus').value,
-    max_daily_hours:$('#dfMax').value, requires_isg:$('#dfIsg').checked, requires_certificate:$('#dfCert').checked, usage_notes:$('#dfNotes').value};
+    max_daily_hours:$('#dfMax').value, min_minutes:$('#dfMin').value, max_advance_days:$('#dfAdv').value, weekly_max_hours:$('#dfWeek').value, requires_isg:$('#dfIsg').checked, requires_certificate:$('#dfCert').checked, usage_notes:$('#dfNotes').value};
   if(withLab) b.lab_id=$('#dfLab').value;
   return b;
 }
@@ -975,10 +1287,15 @@ function openUser(u){
 }
 
 async function admLabs(box){
-  const [labs, users]=await Promise.all([api('/api/labs'), api('/api/users')]);
+  const [labs, users, st]=await Promise.all([api('/api/labs'), api('/api/users'), api('/api/admin/settings')]);
   const mgrs=users.filter(u=>u.role==='lab_manager'||u.role==='admin');
   const mgrSel=(id,val)=>'<select class="inp" '+id+'><option value="">— Atanmamış —</option>'+mgrs.map(u=>'<option value="'+u.id+'"'+(u.id===val?' selected':'')+'>'+esc(u.full_name)+'</option>').join('')+'</select>';
-  box.innerHTML='<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('building')+'<h3>Laboratuvarlar</h3></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Kod</th><th>Laboratuvar</th><th>Konum</th><th>Cihaz</th><th>Sorumlu</th><th>Durum</th></tr></thead><tbody>'+
+  box.innerHTML='<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('clock')+'<h3>Kullanımı Başlatma ve Gelinmeyen Randevu Kuralları</h3></div><div class="card-b">'+
+    '<div class="row" style="align-items:flex-end"><label class="f"><span>Kullanım en erken kaç dakika önce başlatılabilir</span><input class="inp" type="number" id="ruEarly" min="0" max="240" value="'+esc(st.checkin_early_minutes)+'"></label>'+
+    '<label class="f"><span>Başlatılmazsa kaç dakika sonra "gelinmedi" sayılsın (0 = kapalı)</span><input class="inp" type="number" id="ruNoshow" min="0" max="240" value="'+esc(st.noshow_minutes)+'"></label>'+
+    '<div style="flex:0 0 auto;margin-bottom:12px"><button class="btn btn-primary" id="ruSave">Kaydet</button></div></div>'+
+    '<div class="small muted">Gelinmedi denetimi açıkken onaylı randevunun sahibi, cihazın başında "Kullanımı Başlat" demezse randevu belirtilen süre sonunda kapanır ve cihaz başkalarına açılır. Erken bitirilen kullanımda kalan süre de otomatik serbest kalır. Cihaz bazındaki kurallar (en kısa süre, kaç gün ileriye, haftalık sınır) Lab. Sorumlusu İşlemleri &gt; Cihaz Durumları &gt; Düzenle ekranındadır.</div></div></div>'+
+    '<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('building')+'<h3>Laboratuvarlar</h3></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Kod</th><th>Laboratuvar</th><th>Konum</th><th>Cihaz</th><th>Sorumlu</th><th>Durum</th></tr></thead><tbody>'+
     labs.map(l=>'<tr><td><b>'+esc(l.code)+'</b></td><td>'+esc(l.name)+'<div class="small muted">'+esc(l.description||'')+'</div></td><td>'+esc(l.building_room||'-')+'</td><td>'+l.device_count+'</td><td>'+mgrSel('data-lmgr="'+l.id+'" style="min-width:190px"',l.manager_id)+'</td><td><label class="check" style="margin:0"><input type="checkbox" data-lact="'+l.id+'"'+(l.is_active?' checked':'')+'> Aktif</label></td></tr>').join('')+'</tbody></table></div></div>'+
     '<div class="card" style="max-width:760px"><div class="card-h">'+ic('plus')+'<h3>Yeni Laboratuvar</h3></div><div class="card-b">'+
     '<div class="row"><label class="f"><span>Ad *</span><input class="inp" id="nlName" maxlength="150"></label><label class="f" style="flex:0 1 140px"><span>Kod *</span><input class="inp" id="nlCode" maxlength="20"></label></div>'+
@@ -986,6 +1303,10 @@ async function admLabs(box){
     '<label class="f"><span>Açıklama</span><textarea class="inp" id="nlDesc" maxlength="1000"></textarea></label><button class="btn btn-primary" id="nlSave">'+ic('plus')+'Laboratuvarı Ekle</button></div></div>';
   $$('[data-lmgr]').forEach(s=>s.addEventListener('change',()=>act(s, async ()=>{ await api('/api/labs/'+s.dataset.lmgr,{method:'PATCH', body:{manager_id:s.value?+s.value:null}}); toast('Laboratuvar sorumlusu güncellendi.'); })));
   $$('[data-lact]').forEach(c=>c.addEventListener('change',()=>act(c, async ()=>{ const sel=$('[data-lmgr="'+c.dataset.lact+'"]'); await api('/api/labs/'+c.dataset.lact,{method:'PATCH', body:{is_active:c.checked, manager_id:sel.value?+sel.value:null}}); toast('Laboratuvar '+(c.checked?'aktif':'pasif')+' yapıldı.'); })));
+  $('#ruSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+    await api('/api/admin/settings',{method:'PUT', body:{checkin_early_minutes:$('#ruEarly').value, noshow_minutes:$('#ruNoshow').value}});
+    toast('Kullanım kuralları kaydedildi.');
+  }));
   $('#nlSave').addEventListener('click',e=>act(e.currentTarget, async ()=>{
     await api('/api/labs',{method:'POST', body:{name:$('#nlName').value, code:$('#nlCode').value, building_room:$('#nlRoom').value, manager_id:$('#nlMgr').value?+$('#nlMgr').value:null, description:$('#nlDesc').value}});
     toast('Laboratuvar eklendi.'); renderAdmin();
@@ -1066,6 +1387,125 @@ async function admDb(box){
   $('#lgRef').addEventListener('click',()=>admDb(box));
   $('#bkDl').addEventListener('click',()=>toast('Yedek dosyası indiriliyor…'));
   draw();
+}
+
+/* =========================================================
+   CIHAZ SAYFASI (QR kodun actigi sayfa)
+   ========================================================= */
+async function renderDevicePage(){
+  await loadBase();
+  const d=S.devices.find(x=>x.id===S.deviceId);
+  if(!d){ $('#content').innerHTML=empty('Cihaz bulunamadı ya da erişiminiz yok.','micro'); return; }
+  $('#pageTitle').textContent=d.name;
+  const today=iso(new Date());
+  const [mine, calToday, calWeek] = await Promise.all([
+    api('/api/reservations?scope=mine'),
+    api('/api/calendar?device_id='+d.id+'&start='+today+'&days=1'),
+    api('/api/calendar?device_id='+d.id+'&start='+iso(addDays(new Date(),1))+'&days=7')]);
+  S.resList=mine;
+  const myToday=mine.filter(r=>r.device_id===d.id && r.date===today && r.status==='approved');
+  const myNext=mine.filter(r=>r.device_id===d.id && r.date>today && ['approved','pending_advisor','pending_lab'].includes(r.status)).sort((a,b)=>(a.date+a.start_time).localeCompare(b.date+b.start_time)).slice(0,3);
+  let live='';
+  myToday.forEach(r=>{
+    live+='<div class="live-box">'+ic(r.in_progress?'play':'clock')+'<div style="flex:1;min-width:200px"><b>Bugünkü randevunuz: '+esc(r.start_time)+'–'+esc(r.end_time)+'</b><div class="small">'+
+      (r.in_progress?'Kullanım '+esc(r.started_at.slice(11,16))+' itibarıyla sürüyor.':(r.can_start?'Cihazın başındaysanız kullanımı başlatın.':esc(r.start_block||'')))+'</div></div>'+
+      (r.in_progress&&r.can_complete?'<button class="btn btn-navy" data-finish="'+r.id+'">'+ic('stop')+'Kullanımı Bitir</button>':'')+
+      (r.can_start?'<button class="btn btn-primary" data-start="'+r.id+'">'+ic('play')+'Kullanımı Başlat</button>':'')+'</div>';
+  });
+  const H0=7*60, H1=22*60, span=H1-H0;
+  const nowM=new Date().getHours()*60+new Date().getMinutes();
+  const blk=calToday.items.map(i=>{ const a=Math.max(toMin(i.start_time),H0), b=Math.min(toMin(i.end_time),H1); if(b<=a) return '';
+    const cls=i.status==='completed'?'done':(i.status==='approved'?'':'pend');
+    return '<div class="blk '+cls+'" style="left:'+((a-H0)/span*100)+'%;width:'+((b-a)/span*100)+'%" title="'+esc(i.start_time+'–'+i.end_time+' · '+(i.in_progress?'Şu an kullanımda':i.status_label))+'">'+esc(i.start_time)+'–'+esc(i.end_time)+(i.user_name?' '+esc(i.user_name):'')+'</div>'; }).join('');
+  const nowLine = nowM>H0&&nowM<H1 ? '<div class="now" style="left:'+((nowM-H0)/span*100)+'%" title="Şu an"></div>' : '';
+  const byDay={}; calWeek.items.filter(i=>i.status!=='completed').forEach(i=>{ (byDay[i.date]=byDay[i.date]||[]).push(i); });
+  const weekHtml=Array.from({length:7},(_,k)=>{ const dt=addDays(new Date(),k+1), s=iso(dt), l=byDay[s]||[];
+    return '<div class="list-item"><div style="width:120px;flex:none"><b>'+DAYS_S[dt.getDay()]+'</b> <span class="small muted">'+fmtDate(s)+'</span></div><div style="flex:1;display:flex;flex-wrap:wrap;gap:5px">'+
+      (l.length? l.map(i=>'<span class="badge '+(i.status==='approved'?'b-ok':'b-warn')+'">'+esc(i.start_time)+'–'+esc(i.end_time)+(i.mine?' · siz':'')+'</span>').join('') : '<span class="small muted">Boş</span>')+'</div>'+
+      (d.status==='active'?'<button class="btn btn-ghost btn-sm" data-bookday="'+s+'">'+ic('plus')+'</button>':'')+'</div>'; }).join('');
+  const auth = d.authorized? '<span class="badge b-ok">'+ic('check2')+'Yetkili</span>' : d.auth_problems.map(p=>'<span class="badge b-bad">'+esc(p)+'</span>').join(' ');
+  $('#content').innerHTML=live+
+   '<div class="grid g2" style="align-items:start">'+
+    '<div class="card"><div class="dev-top"><div class="dev-ic">'+ic(deviceIcon(d.name))+'</div><div style="flex:1;min-width:0"><h4 style="margin:0;color:var(--navy);font-size:17px">'+esc(d.name)+'</h4><div class="small muted">'+esc(d.brand_model||'')+(d.serial_no?' · SN '+esc(d.serial_no):'')+'</div><div class="small muted">'+esc(d.lab_name)+' · '+esc(d.building_room||'')+' · Sorumlu: '+esc(d.manager_name||'-')+'</div></div><div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">'+devBadge(d.status)+(d.in_use?'<span class="badge b-info">'+ic('play')+'Kullanımda</span>':'')+'</div></div>'+
+     '<div class="card-b" style="padding-top:0"><div class="kv"><span>Yetkiniz</span><div>'+auth+'</div><span>Gereksinim</span><div>'+([d.requires_isg?'İSG eğitimi':'',d.requires_certificate?'Kullanım sertifikası':''].filter(Boolean).join(' · ')||'Yok')+'</div>'+
+     '<span>Kurallar</span><div>En kısa '+fmtMin(d.min_minutes)+' · günde en çok '+d.max_daily_hours+' sa'+(d.weekly_max_hours?' · haftada en çok '+d.weekly_max_hours+' sa':'')+' · '+d.max_advance_days+' gün ileriye</div>'+
+     (d.usage_notes?'<span>Kullanım notu</span><div>'+esc(d.usage_notes)+'</div>':'')+'</div>'+
+     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-primary" id="dpBook"'+(d.status==='active'?'':' disabled')+'>'+ic('calendar')+'Randevu Al</button><button class="btn btn-danger" id="dpIssue">'+ic('bug')+'Arıza Bildir</button>'+(d.can_manage?'<button class="btn btn-ghost" id="dpQr">'+ic('qr')+'QR Etiketi</button>':'')+'<button class="btn btn-ghost" id="dpCal">'+ic('clock')+'Haftalık Takvim</button></div></div></div>'+
+    '<div><div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('clock')+'<h3>Bugün</h3><span class="r small muted">'+fmtDate(today)+' · 07:00–22:00</span></div><div class="card-b"><div class="timeline">'+blk+nowLine+'</div><div class="strip-axis">'+Array.from({length:15},(_,i)=>'<span>'+String(7+i).padStart(2,'0')+'</span>').join('')+'</div>'+(calToday.items.length?'':'<div class="small muted" style="margin-top:6px">Bugün için kayıtlı randevu yok.</div>')+'</div></div>'+
+    '<div class="card"><div class="card-h">'+ic('calendar')+'<h3>Önümüzdeki 7 Gün</h3></div><div class="card-b">'+weekHtml+'</div></div>'+
+    (myNext.length?'<div class="card" style="margin-top:16px"><div class="card-h">'+ic('list')+'<h3>Bu Cihazdaki Sıradaki Randevularınız</h3></div><div class="card-b">'+myNext.map(r=>'<div class="list-item"><div style="flex:1">'+fmtDate(r.date)+' '+esc(r.start_time)+'–'+esc(r.end_time)+'</div>'+resBadge(r.status)+'</div>').join('')+'</div></div>':'')+
+    '</div></div>';
+  bindResActions($('#content'));
+  $('#dpBook').addEventListener('click',()=>openBooking(d.id));
+  $('#dpCal').addEventListener('click',()=>{ S.cal.device=String(d.id); S.resTab='calendar'; go('reservations'); });
+  if($('#dpQr')) $('#dpQr').addEventListener('click',()=>openQr(d));
+  $$('[data-bookday]').forEach(b=>b.addEventListener('click',()=>openBooking(d.id,{date:b.dataset.bookday})));
+  $('#dpIssue').addEventListener('click',()=>{
+    const m=openModal('Arıza / Sorun Bildir — '+d.name,
+      '<p class="small muted" style="margin-top:0">Bildiriminiz laboratuvar sorumlusuna ('+esc(d.manager_name||'-')+') iletilir ve arıza kaydı açılır. Acil güvenlik durumlarında laboratuvar acil durum talimatlarına uyun.</p>'+
+      '<label class="f"><span>Sorunun açıklaması *</span><textarea class="inp" id="isTxt" maxlength="1500" rows="5" placeholder="Ne oldu, hangi hata mesajı çıktı, cihaz şu an ne durumda…"></textarea></label>',
+      '<button class="btn btn-ghost" data-close>Vazgeç</button><button class="btn btn-danger" id="isSend">'+ic('send')+'Bildir</button>');
+    $$('[data-close]',m).forEach(b=>b.addEventListener('click',closeModal));
+    $('#isSend').addEventListener('click',e=>act(e.currentTarget, async ()=>{
+      await api('/api/devices/'+d.id+'/issues',{method:'POST', body:{description:$('#isTxt').value}});
+      closeModal(); toast('Arıza bildiriminiz alındı ve laboratuvar sorumlusuna iletildi.');
+    }));
+  });
+}
+
+/* =========================================================
+   RAPORLAR
+   ========================================================= */
+S.rep={from:null,to:null,group:'device',lab:''};
+async function renderReports(){
+  const r=S.rep, t=new Date();
+  if(!r.from){ r.from=iso(new Date(t.getFullYear(),t.getMonth(),1)); r.to=iso(t); }
+  if(!S.labs.length) await loadBase();
+  const labs=S.labs.filter(l=>S.me.role==='admin'||l.manager_id===S.me.id);
+  const qs='from='+r.from+'&to='+r.to+'&group='+r.group+(r.lab?'&lab_id='+r.lab:'');
+  const data=await api('/api/reports/usage?'+qs);
+  const T=data.totals, nsRate=(T.completed+T.no_show)?Math.round(1000*T.no_show/(T.completed+T.no_show))/10:0;
+  const maxH=Math.max(1,...data.summary.map(a=>a.hours));
+  const groups=[['device','Cihaz'],['lab','Laboratuvar'],['advisor','Danışman'],['user','Kullanıcı'],['month','Ay']];
+  const nf=v=>(+v).toLocaleString('tr-TR',{maximumFractionDigits:2});
+  $('#content').innerHTML=
+   '<div class="card" style="margin-bottom:16px"><div class="card-b"><div class="row" style="align-items:flex-end">'+
+    '<label class="f" style="margin:0"><span>Başlangıç</span><input class="inp" type="date" id="rpFrom" value="'+r.from+'"></label>'+
+    '<label class="f" style="margin:0"><span>Bitiş</span><input class="inp" type="date" id="rpTo" value="'+r.to+'"></label>'+
+    '<label class="f" style="margin:0"><span>Gruplama</span><select class="inp" id="rpGroup">'+groups.map(g=>'<option value="'+g[0]+'"'+(g[0]===r.group?' selected':'')+'>'+g[1]+'</option>').join('')+'</select></label>'+
+    (S.me.role!=='advisor'?'<label class="f" style="margin:0"><span>Laboratuvar</span><select class="inp" id="rpLab"><option value="">Tümü</option>'+labs.map(l=>'<option value="'+l.id+'"'+(String(l.id)===r.lab?' selected':'')+'>'+esc(l.name)+'</option>').join('')+'</select></label>':'')+
+    '<div style="flex:0 0 auto;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" id="rpGo">Uygula</button><a class="btn btn-navy" id="rpXlsx" href="/api/reports/usage.xlsx?'+qs+'">'+ic('download')+'Excel\'e Aktar</a></div></div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px"><span class="small muted" style="align-self:center">Hızlı seçim:</span>'+
+      [['month','Bu ay'],['prev','Geçen ay'],['q','Son 3 ay'],['year','Bu yıl']].map(x=>'<button class="btn btn-ghost btn-sm" data-range="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>'+
+    (S.me.role==='advisor'?'<div class="small muted" style="margin-top:8px">Danışmanı olduğunuz öğrencilerin randevuları gösterilir.</div>':'')+
+   '</div></div>'+
+   '<div class="grid g4" style="margin-bottom:16px">'+
+    stat('check2','ic-teal',T.completed,'Tamamlanan Kullanım',T.requests+' talep içinde')+
+    stat('clock','ic-blue',nf(T.hours)+' sa','Gerçekleşen Kullanım','Planlanan: '+nf(T.planned_hours)+' sa')+
+    stat('xc','ic-amber','%'+nf(nsRate),'Gelinmeme Oranı',T.no_show+' randevuya gelinmedi')+
+    stat('x','ic-navy',T.cancelled+T.rejected,'İptal + Red',T.cancelled+' iptal · '+T.rejected+' red · '+T.pending+' bekleyen')+
+   '</div>'+
+   '<div class="card" style="margin-bottom:16px"><div class="card-h">'+ic('chart')+'<h3>'+esc(data.group_label)+' Bazında Kullanım</h3><span class="r small muted">'+fmtDate(data.from)+' – '+fmtDate(data.to)+'</span></div><div class="tbl-wrap">'+
+    (data.summary.length?'<table class="t"><thead><tr><th>'+esc(data.group_label)+'</th><th class="num">Talep</th><th class="num">Tamamlanan</th><th class="num">Gerçekleşen sa</th><th style="min-width:140px">Pay</th><th class="num">Yaklaşan</th><th class="num">Gelinmedi</th><th class="num">İptal</th><th class="num">Red</th><th>Dağılım</th></tr></thead><tbody>'+
+      data.summary.map(a=>{ const tot=Math.max(1,a.completed+a.upcoming+a.no_show+a.cancelled+a.rejected+a.pending);
+        return '<tr><td><b>'+esc(a.key)+'</b></td><td class="num">'+a.requests+'</td><td class="num">'+a.completed+'</td><td class="num">'+nf(a.hours)+'</td><td><div class="bar"><i style="width:'+Math.round(a.hours/maxH*100)+'%"></i></div></td><td class="num">'+a.upcoming+'</td><td class="num">'+a.no_show+(a.no_show?' <span class="small muted">(%'+nf(a.no_show_rate)+')</span>':'')+'</td><td class="num">'+a.cancelled+'</td><td class="num">'+a.rejected+'</td>'+
+          '<td><div class="rbar" title="Tamamlanan '+a.completed+' · Yaklaşan '+a.upcoming+' · Bekleyen '+a.pending+' · Gelinmedi '+a.no_show+' · İptal '+a.cancelled+' · Red '+a.rejected+'"><i style="width:'+(a.completed/tot*100)+'%;background:var(--teal)"></i><i style="width:'+(a.upcoming/tot*100)+'%;background:#7cc7bd"></i><i style="width:'+(a.pending/tot*100)+'%;background:#e0a106"></i><i style="width:'+(a.no_show/tot*100)+'%;background:var(--bad)"></i><i style="width:'+(a.cancelled/tot*100)+'%;background:#9aa9b9"></i><i style="width:'+(a.rejected/tot*100)+'%;background:#5b6b7d"></i></div></td></tr>'; }).join('')+
+      '<tr class="total"><td>TOPLAM</td><td class="num">'+T.requests+'</td><td class="num">'+T.completed+'</td><td class="num">'+nf(T.hours)+'</td><td></td><td class="num">'+T.upcoming+'</td><td class="num">'+T.no_show+'</td><td class="num">'+T.cancelled+'</td><td class="num">'+T.rejected+'</td><td></td></tr></tbody></table>'
+      : empty('Bu aralıkta kayıt yok.','chart'))+
+    '</div><div class="card-b" style="padding-top:8px"><div class="legend"><span><i style="background:var(--teal)"></i>Tamamlanan</span><span><i style="background:#7cc7bd"></i>Yaklaşan onaylı</span><span><i style="background:#e0a106"></i>Onay bekleyen</span><span><i style="background:var(--bad)"></i>Gelinmedi</span><span><i style="background:#9aa9b9"></i>İptal</span><span><i style="background:#5b6b7d"></i>Red</span></div></div></div>'+
+   '<div class="card"><div class="card-h">'+ic('list')+'<h3>Ayrıntı</h3><span class="r small muted">'+data.details.length+' kayıt'+(data.details.length>200?' · ilk 200 gösteriliyor, tamamı Excel dosyasında':'')+'</span></div><div class="tbl-wrap">'+
+    (data.details.length?'<table class="t"><thead><tr><th>No</th><th>Tarih</th><th>Saat</th><th>Cihaz</th><th>Kullanıcı</th><th>Proje</th><th>Durum</th><th class="num">Saat</th></tr></thead><tbody>'+
+      data.details.slice(0,200).map(x=>'<tr><td>#'+x.id+'</td><td style="white-space:nowrap">'+fmtDate(x.date)+'</td><td style="white-space:nowrap">'+esc(x.start_time)+'–'+esc(x.end_time)+'</td><td>'+esc(x.device_name)+'</td><td>'+esc(x.user_name)+'</td><td class="small">'+esc(x.project_title)+'</td><td class="small">'+esc(x.status)+'</td><td class="num">'+(x.actual_hours!=null?nf(x.actual_hours):'')+'</td></tr>').join('')+'</tbody></table>' : empty('Kayıt yok.'))+
+   '</div></div>';
+  const apply=()=>{ r.from=$('#rpFrom').value||r.from; r.to=$('#rpTo').value||r.to; r.group=$('#rpGroup').value; r.lab=$('#rpLab')?$('#rpLab').value:''; renderReports().catch(e=>toast(e.message,'err')); };
+  $('#rpGo').addEventListener('click',apply);
+  ['rpGroup','rpLab'].forEach(id=>{ if($('#'+id)) $('#'+id).addEventListener('change',apply); });
+  $$('[data-range]').forEach(b=>b.addEventListener('click',()=>{
+    const n=new Date(), y=n.getFullYear(), mo=n.getMonth();
+    const map={month:[new Date(y,mo,1),n], prev:[new Date(y,mo-1,1),new Date(y,mo,0)], q:[new Date(y,mo-2,1),n], year:[new Date(y,0,1),n]}[b.dataset.range];
+    $('#rpFrom').value=iso(map[0]); $('#rpTo').value=iso(map[1]); apply();
+  }));
+  $('#rpXlsx').addEventListener('click',()=>toast('Excel dosyası hazırlanıyor…'));
 }
 
 /* ---------- Baslangic ---------- */

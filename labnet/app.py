@@ -27,6 +27,10 @@ import ssl
 import tempfile
 import threading
 import time
+import uuid
+import zipfile
+from io import BytesIO
+from xml.sax.saxutils import escape as xml_escape
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from functools import wraps
@@ -89,6 +93,8 @@ DEFAULT_SETTINGS = {
     "smtp_user": "",
     "smtp_pass": "",
     "smtp_from": "",
+    "noshow_minutes": "15",
+    "checkin_early_minutes": "15",
 }
 SECRET_SETTINGS = ("ldap_bind_pass", "smtp_pass")
 
@@ -158,7 +164,10 @@ CREATE TABLE IF NOT EXISTS devices (
     requires_certificate INTEGER NOT NULL DEFAULT 0,
     requires_isg INTEGER NOT NULL DEFAULT 0,
     max_daily_hours INTEGER NOT NULL DEFAULT 8,
-    usage_notes TEXT
+    usage_notes TEXT,
+    min_minutes INTEGER NOT NULL DEFAULT 30,
+    max_advance_days INTEGER NOT NULL DEFAULT 60,
+    weekly_max_hours INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS user_certificates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -183,7 +192,22 @@ CREATE TABLE IF NOT EXISTS reservations (
     lab_note TEXT,
     actual_hours REAL,
     usage_report TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    started_at TEXT,
+    ended_at TEXT,
+    no_show INTEGER NOT NULL DEFAULT 0,
+    series_id TEXT
+);
+CREATE TABLE IF NOT EXISTS device_issues (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER NOT NULL REFERENCES devices(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    description TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
+    resolution_note TEXT,
+    resolved_by INTEGER REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    resolved_at TEXT
 );
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -201,6 +225,23 @@ CREATE INDEX IF NOT EXISTS idx_res_device_date ON reservations(device_id, date);
 CREATE INDEX IF NOT EXISTS idx_res_user ON reservations(user_id);
 CREATE INDEX IF NOT EXISTS idx_cert_user_device ON user_certificates(user_id, device_id);
 """
+
+# Eski surumden kalan veritabanlarina sonradan eklenen sutunlar.
+MIGRATIONS = {
+    "devices": [("min_minutes", "INTEGER NOT NULL DEFAULT 30"), ("max_advance_days", "INTEGER NOT NULL DEFAULT 60"),
+                ("weekly_max_hours", "INTEGER NOT NULL DEFAULT 0")],
+    "reservations": [("started_at", "TEXT"), ("ended_at", "TEXT"), ("no_show", "INTEGER NOT NULL DEFAULT 0"),
+                     ("series_id", "TEXT")],
+}
+
+
+def migrate(conn):
+    for table, cols in MIGRATIONS.items():
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, decl in cols:
+            if name not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_res_series ON reservations(series_id)")
 
 
 def now_str():
@@ -272,6 +313,14 @@ def seed_data(conn):
             (lab_ids[code], name, model, serial, status, cert, isg, maxh, notes))
         dev_ids[serial] = cur.lastrowid
 
+    # Cihaz bazinda randevu kurallari: en kisa sure (dk), en fazla kac gun ileriye, haftalik ust sinir (0 = yok)
+    rules = {"SEM-2021-0042": (30, 30, 8), "FTIR-2019-0117": (30, 60, 0), "PCR-2022-0310": (60, 45, 16),
+             "HPLC-2020-0076": (60, 60, 0), "BIO-2023-0008": (60, 30, 8), "HPC-2022-0201": (60, 14, 24),
+             "KON-2021-0055": (30, 60, 0)}
+    for serial, (mn, adv, wk) in rules.items():
+        conn.execute("UPDATE devices SET min_minutes=?, max_advance_days=?, weekly_max_hours=? WHERE id=?",
+                     (mn, adv, wk, dev_ids[serial]))
+
     ali = ids["ali.yilmaz@ogr.universite.edu.tr"]
     zeynep = ids["zeynep.arslan@ogr.universite.edu.tr"]
     ahmet = ids["danisman@universite.edu.tr"]
@@ -327,6 +376,7 @@ def init_db():
     conn = connect_db()
     try:
         conn.executescript(SCHEMA)
+        migrate(conn)
         if is_new or conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
             seed_data(conn)
         for k, v in DEFAULT_SETTINGS.items():
@@ -513,6 +563,9 @@ def before_request():
         if request.headers.get("X-LABNET") != "1":
             return jsonify(error="Geçersiz istek kaynağı."), 400
 
+    if request.path.startswith("/api/"):
+        mark_no_shows()
+
     g.user = None
     uid = session.get("uid")
     if uid:
@@ -521,6 +574,49 @@ def before_request():
             g.user = row
         else:
             session.clear()
+
+
+_noshow_state = {"ts": 0.0}
+_noshow_lock = threading.Lock()
+
+
+def mark_no_shows(force=False):
+    """Baslangictan N dakika sonra kullanimi baslatilmayan onayli randevulari 'gelinmedi' olarak kapatir."""
+    st = get_settings()
+    try:
+        limit = int(st.get("noshow_minutes") or 0)
+    except ValueError:
+        limit = 0
+    if limit <= 0:
+        return
+    with _noshow_lock:
+        if not force and time.time() - _noshow_state["ts"] < 60:
+            return
+        _noshow_state["ts"] = time.time()
+    now = datetime.now()
+    conn = connect_db()
+    try:
+        rows = conn.execute(
+            "SELECT r.id, r.date, r.start_time, r.end_time, d.name AS device_name, u.email, u.full_name "
+            "FROM reservations r JOIN devices d ON d.id=r.device_id JOIN users u ON u.id=r.user_id "
+            "WHERE r.status='approved' AND r.started_at IS NULL AND r.date<=?", (now.date().isoformat(),)).fetchall()
+        for r in rows:
+            start_dt = datetime.strptime(f"{r['date']} {r['start_time']}", "%Y-%m-%d %H:%M")
+            if now < start_dt + timedelta(minutes=limit):
+                continue
+            note = f"Otomatik: randevu başlangıcından sonraki {limit} dakika içinde kullanım başlatılmadı (gelinmedi)."
+            conn.execute("UPDATE reservations SET status='cancelled', no_show=1, lab_note=COALESCE(lab_note||' / ','')||? "
+                         "WHERE id=? AND status='approved' AND started_at IS NULL", (note, r["id"]))
+            audit("GELINMEDI", f"#{r['id']} {r['device_name']} {r['date']} {r['start_time']} - {r['email']}",
+                  email="sistem", ip="-", conn=conn)
+            notify(r["email"], "LABNET: Randevunuza gelinmedi olarak işaretlendi",
+                   f"Sayın {r['full_name']},\n\n#{r['id']} {r['device_name']} {r['date']} {r['start_time']}-{r['end_time']} "
+                   f"randevunuzda kullanım başlatılmadığı için randevu kapatıldı ve cihaz diğer kullanıcılara açıldı.")
+        conn.commit()
+    except Exception as exc:
+        app.logger.error("Gelinmeyen randevu denetimi hatası: %s", exc)
+    finally:
+        conn.close()
 
 
 @app.after_request
@@ -587,8 +683,8 @@ def ldap_authenticate(email, password, st):
     finally:
         try:
             user_conn.unbind()
-        except Exception:
-            pass
+        except Exception as exc:
+            app.logger.debug("LDAP baglantisi kapatilamadi: %s", exc)
 
     def first(key):
         v = attrs.get(key) or []
@@ -632,8 +728,8 @@ def smtp_send(to_addrs, subject, text, st=None, raise_errors=False):
         finally:
             try:
                 server.quit()
-            except Exception:
-                pass
+            except Exception as exc:
+                app.logger.debug("SMTP baglantisi kapatilamadi: %s", exc)
     except Exception as exc:
         audit("EPOSTA_HATASI", f"{subject} -> {', '.join(to_addrs)}: {exc}", email="sistem", ip="-")
         if raise_errors:
@@ -946,6 +1042,11 @@ def api_devices():
     db = get_db()
     today = date.today().isoformat()
     isg_ok = bool(u["isg_valid_until"] and u["isg_valid_until"] >= today)
+    in_use = {r["device_id"]: r for r in db.execute(
+        "SELECT r.device_id, r.end_time, u.full_name FROM reservations r JOIN users u ON u.id=r.user_id "
+        "WHERE r.status='approved' AND r.date=? AND r.started_at IS NOT NULL AND r.ended_at IS NULL", (today,))}
+    issues = {r["device_id"]: r["n"] for r in db.execute(
+        "SELECT device_id, COUNT(*) AS n FROM device_issues WHERE status='open' GROUP BY device_id")}
     out = []
     for r in device_rows(db):
         dct = row_dict(r)
@@ -963,6 +1064,11 @@ def api_devices():
         dct["auth_problems"] = problems
         dct["cert_expires_at"] = cert["expires_at"] if cert else None
         dct["can_manage"] = can_manage_lab(u, dct["lab_id"])
+        use = in_use.get(dct["id"])
+        dct["in_use"] = bool(use)
+        dct["in_use_until"] = use["end_time"] if use else None
+        dct["in_use_by"] = use["full_name"] if use and (dct["can_manage"] or u["role"] == "admin") else None
+        dct["open_issues"] = issues.get(dct["id"], 0) if dct["can_manage"] else 0
         out.append(dct)
     return jsonify(out)
 
@@ -990,6 +1096,20 @@ def device_payload(data, partial=False, existing=None):
         if not 1 <= mh <= 24:
             raise ApiError("Günlük azami saat 1 ile 24 arasında olmalıdır.")
         out["max_daily_hours"] = mh
+    for key, lo, hi, default, label in (("min_minutes", 5, 1440, 30, "En kısa randevu süresi (dk)"),
+                                        ("max_advance_days", 1, 365, 60, "En fazla kaç gün ileriye"),
+                                        ("weekly_max_hours", 0, 168, 0, "Haftalık azami saat")):
+        if not partial or key in data:
+            raw = data.get(key)
+            try:
+                val = default if raw in (None, "") else int(raw)
+            except (TypeError, ValueError):
+                raise ApiError(f"'{label}' bir tam sayı olmalıdır.")
+            if not lo <= val <= hi:
+                raise ApiError(f"'{label}' {lo} ile {hi} arasında olmalıdır.")
+            out[key] = val
+    if out.get("min_minutes") and out.get("max_daily_hours") and out["min_minutes"] > out["max_daily_hours"] * 60:
+        raise ApiError("En kısa randevu süresi günlük azami süreden uzun olamaz.")
     return out
 
 
@@ -1010,9 +1130,10 @@ def api_device_create():
     p = device_payload(data)
     cur = db.execute(
         "INSERT INTO devices (lab_id,name,brand_model,serial_no,status,requires_certificate,requires_isg,"
-        "max_daily_hours,usage_notes) VALUES (?,?,?,?,?,?,?,?,?)",
+        "max_daily_hours,usage_notes,min_minutes,max_advance_days,weekly_max_hours) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (lab_id, p["name"], p["brand_model"], p["serial_no"], p["status"], p["requires_certificate"],
-         p["requires_isg"], p["max_daily_hours"], p["usage_notes"]))
+         p["requires_isg"], p["max_daily_hours"], p["usage_notes"], p["min_minutes"], p["max_advance_days"],
+         p["weekly_max_hours"]))
     db.commit()
     audit("CIHAZ_EKLENDI", f"#{cur.lastrowid} {p['name']} (lab #{lab_id})")
     return jsonify(ok=True, id=cur.lastrowid)
@@ -1244,7 +1365,8 @@ def api_certificate_delete(cert_id):
 RES_SELECT = (
     "SELECT r.*, d.name AS device_name, d.lab_id, d.status AS device_status, l.name AS lab_name, "
     "l.manager_id, u.full_name AS user_name, u.email AS user_email, a.full_name AS advisor_name, "
-    "m.full_name AS manager_name FROM reservations r JOIN devices d ON d.id=r.device_id "
+    "m.full_name AS manager_name, (SELECT COUNT(*) FROM reservations s2 WHERE s2.series_id=r.series_id) "
+    "AS series_count FROM reservations r JOIN devices d ON d.id=r.device_id "
     "JOIN laboratories l ON l.id=d.lab_id JOIN users u ON u.id=r.user_id "
     "LEFT JOIN users a ON a.id=r.advisor_id LEFT JOIN users m ON m.id=l.manager_id")
 
@@ -1252,12 +1374,41 @@ RES_SELECT = (
 def res_out(r, u):
     dct = row_dict(r)
     dct["status_label"] = RES_STATUS_LABELS[dct["status"]]
-    today = date.today().isoformat()
+    if dct["status"] == "cancelled" and dct.get("no_show"):
+        dct["status_label"] = "Gelinmedi"
+    now = datetime.now()
+    today = now.date().isoformat()
     owner = dct["user_id"] == u["id"]
     is_mgr = u["role"] == "admin" or dct["manager_id"] == u["id"]
+    st = get_settings()
+    try:
+        noshow = int(st.get("noshow_minutes") or 0)
+        early = int(st.get("checkin_early_minutes") or 0)
+    except ValueError:
+        noshow, early = 0, 15
+    dct["in_progress"] = dct["status"] == "approved" and bool(dct["started_at"]) and not dct["ended_at"]
     dct["can_cancel"] = owner and (dct["status"] in ("pending_advisor", "pending_lab") or
-                                   (dct["status"] == "approved" and dct["date"] >= today))
-    dct["can_complete"] = dct["status"] == "approved" and (owner or is_mgr) and dct["date"] <= today
+                                   (dct["status"] == "approved" and dct["date"] >= today and not dct["started_at"]))
+    # Kullanimi baslatma: randevu sahibi (veya sorumlu), randevu gunu, baslangictan 'early' dk once ile bitis arasi.
+    can_start, block = False, None
+    if dct["status"] == "approved" and not dct["started_at"] and (owner or is_mgr):
+        if dct["date"] != today:
+            block = "Kullanım yalnızca randevu gününde başlatılabilir."
+        else:
+            cur = now.hour * 60 + now.minute
+            if cur < minutes(dct["start_time"]) - early:
+                block = f"Kullanım en erken randevudan {early} dakika önce başlatılabilir."
+            elif cur >= minutes(dct["end_time"]):
+                block = "Randevu süresi dolmuş."
+            elif dct["device_status"] != "active":
+                block = "Cihaz şu anda aktif değil."
+            else:
+                can_start = True
+    dct["can_start"] = can_start
+    dct["start_block"] = block
+    # Tamamlama: sorumlu her zaman; sahibi, gelinmedi denetimi aciksa once kullanimi baslatmis olmali.
+    dct["can_complete"] = dct["status"] == "approved" and dct["date"] <= today and (
+        is_mgr or (owner and (bool(dct["started_at"]) or noshow <= 0)))
     dct["can_advisor_decide"] = dct["status"] == "pending_advisor" and (
         dct["advisor_id"] == u["id"] or u["role"] == "admin")
     dct["can_lab_decide"] = dct["status"] == "pending_lab" and is_mgr
@@ -1297,6 +1448,67 @@ def api_reservations():
     return jsonify([res_out(r, u) for r in rows])
 
 
+def check_booking(db, u, dev, res_date, start, end):
+    """Bir randevu adayini butun kurallara gore denetler; uymazsa ApiError firlatir."""
+    res_date_s = res_date.isoformat()
+    device_id = dev["id"]
+    # 1) Cihaz durumu
+    if dev["status"] != "active" or not dev["lab_active"]:
+        raise ApiError(f"Bu cihaz şu anda '{DEVICE_STATUS_LABELS.get(dev['status'], dev['status'])}' durumunda; "
+                       "randevu alınamaz.")
+    # Tarih / saat kurallari
+    today = date.today()
+    now = datetime.now()
+    if res_date < today:
+        raise ApiError("Geçmiş bir tarihe randevu alınamaz.")
+    if res_date > today + timedelta(days=dev["max_advance_days"]):
+        raise ApiError(f"Bu cihaz için en fazla {dev['max_advance_days']} gün sonrasına randevu alınabilir.")
+    if res_date == today and minutes(start) < now.hour * 60 + now.minute:
+        raise ApiError("Bugün için geçmiş bir saate randevu alınamaz.")
+    if minutes(end) <= minutes(start):
+        raise ApiError("Bitiş saati başlangıç saatinden sonra olmalıdır.")
+    dur_min = minutes(end) - minutes(start)
+    duration = dur_min / 60.0
+    if dur_min < dev["min_minutes"]:
+        raise ApiError(f"Bu cihaz için en kısa randevu süresi {dev['min_minutes']} dakikadır.")
+    if duration > dev["max_daily_hours"]:
+        raise ApiError(f"Bu cihaz için günlük azami kullanım süresi {dev['max_daily_hours']} saattir.")
+    active = "('pending_advisor','pending_lab','approved')"
+    used = db.execute(f"SELECT start_time, end_time FROM reservations WHERE user_id=? AND device_id=? AND date=? "
+                      f"AND status IN {active}", (u["id"], device_id, res_date_s)).fetchall()
+    used_h = sum((minutes(r["end_time"]) - minutes(r["start_time"])) / 60.0 for r in used)
+    if used_h + duration > dev["max_daily_hours"]:
+        raise ApiError(f"Bu cihaz için günlük azami süre {dev['max_daily_hours']} saattir; o gün için zaten "
+                       f"{used_h:g} saatlik talebiniz var.")
+    if dev["weekly_max_hours"]:
+        monday = res_date - timedelta(days=res_date.weekday())
+        rows = db.execute(f"SELECT start_time, end_time FROM reservations WHERE user_id=? AND device_id=? AND "
+                          f"date BETWEEN ? AND ? AND status IN {active}",
+                          (u["id"], device_id, monday.isoformat(), (monday + timedelta(days=6)).isoformat())).fetchall()
+        week_h = sum((minutes(r["end_time"]) - minutes(r["start_time"])) / 60.0 for r in rows)
+        if week_h + duration > dev["weekly_max_hours"]:
+            raise ApiError(f"Bu cihaz için haftalık azami süre {dev['weekly_max_hours']} saattir; o hafta için "
+                           f"zaten {week_h:g} saatlik talebiniz var.")
+    # 2) ISG
+    if dev["requires_isg"]:
+        isg = u["isg_valid_until"]
+        if not isg or isg < res_date_s:
+            raise ApiError("Bu cihaz İSG eğitimi gerektiriyor. İSG eğitim geçerlilik tarihiniz "
+                           f"({isg or 'tanımsız'}) randevu tarihini kapsamıyor.")
+    # 3) Sertifika (laboratuvarin sorumlusu ve sistem yoneticisi muaf)
+    exempt = u["role"] == "admin" or dev["manager_id"] == u["id"]
+    if dev["requires_certificate"] and not exempt and not valid_certificate(db, u["id"], device_id, res_date_s):
+        raise ApiError("Bu cihaz için randevu tarihinde geçerli bir kullanım sertifikanız bulunmuyor. "
+                       "Laboratuvar sorumlusundan sertifika talep ediniz.")
+    # 4) Cakisma
+    clash = db.execute(
+        f"SELECT start_time, end_time FROM reservations WHERE device_id=? AND date=? AND status IN {active} "
+        "AND start_time < ? AND end_time > ? LIMIT 1", (device_id, res_date_s, end, start)).fetchone()
+    if clash:
+        raise ApiError(f"Saat çakışması: cihaz {res_date_s} tarihinde {clash['start_time']}-{clash['end_time']} "
+                       "arasında başka bir randevu için ayrılmış.", 409)
+
+
 @app.route("/api/reservations", methods=["POST"])
 @login_required()
 def api_reservation_create():
@@ -1312,57 +1524,19 @@ def api_reservation_create():
     if not dev:
         raise ApiError("Cihaz bulunamadı.", 404)
 
-    res_date_s = s(data, "date", True, 10, "Tarih")
-    res_date = parse_date(res_date_s)
+    first_date = parse_date(s(data, "date", True, 10, "Tarih"))
     start, end = s(data, "start_time", True, 5, "Başlangıç saati"), s(data, "end_time", True, 5, "Bitiş saati")
     if not TIME_RE.match(start) or not TIME_RE.match(end):
         raise ApiError("Saatler SS:DD biçiminde olmalıdır.")
     project_title = s(data, "project_title", True, 200, "Proje başlığı")
     purpose = s(data, "purpose", max_len=1500)
-
-    # 1) Cihaz durumu
-    if dev["status"] != "active" or not dev["lab_active"]:
-        raise ApiError(f"Bu cihaz şu anda '{DEVICE_STATUS_LABELS.get(dev['status'], dev['status'])}' durumunda; "
-                       "randevu alınamaz.")
-    # Tarih / saat kurallari
-    today = date.today()
-    if res_date < today:
-        raise ApiError("Geçmiş bir tarihe randevu alınamaz.")
-    if res_date > today + timedelta(days=180):
-        raise ApiError("En fazla 180 gün sonrasına randevu alınabilir.")
-    if res_date == today and minutes(start) < datetime.now().hour * 60 + datetime.now().minute:
-        raise ApiError("Bugün için geçmiş bir saate randevu alınamaz.")
-    if minutes(end) <= minutes(start):
-        raise ApiError("Bitiş saati başlangıç saatinden sonra olmalıdır.")
-    duration = (minutes(end) - minutes(start)) / 60.0
-    if duration > dev["max_daily_hours"]:
-        raise ApiError(f"Bu cihaz için günlük azami kullanım süresi {dev['max_daily_hours']} saattir.")
-    used = db.execute(
-        "SELECT start_time, end_time FROM reservations WHERE user_id=? AND device_id=? AND date=? AND status IN "
-        "('pending_advisor','pending_lab','approved')", (u["id"], device_id, res_date_s)).fetchall()
-    used_h = sum((minutes(r["end_time"]) - minutes(r["start_time"])) / 60.0 for r in used)
-    if used_h + duration > dev["max_daily_hours"]:
-        raise ApiError(f"Bu cihaz için günlük azami süre {dev['max_daily_hours']} saattir; o gün için zaten "
-                       f"{used_h:g} saatlik talebiniz var.")
-    # 2) ISG
-    if dev["requires_isg"]:
-        isg = u["isg_valid_until"]
-        if not isg or isg < res_date_s:
-            raise ApiError("Bu cihaz İSG eğitimi gerektiriyor. İSG eğitim geçerlilik tarihiniz "
-                           f"({isg or 'tanımsız'}) randevu tarihini kapsamıyor.")
-    # 3) Sertifika (laboratuvarin sorumlusu ve sistem yoneticisi muaf)
-    exempt = u["role"] == "admin" or dev["manager_id"] == u["id"]
-    if dev["requires_certificate"] and not exempt and not valid_certificate(db, u["id"], device_id, res_date_s):
-        raise ApiError("Bu cihaz için randevu tarihinde geçerli bir kullanım sertifikanız bulunmuyor. "
-                       "Laboratuvar sorumlusundan sertifika talep ediniz.")
-    # 4) Cakisma
-    clash = db.execute(
-        "SELECT start_time, end_time FROM reservations WHERE device_id=? AND date=? AND status IN "
-        "('pending_advisor','pending_lab','approved') AND start_time < ? AND end_time > ? LIMIT 1",
-        (device_id, res_date_s, end, start)).fetchone()
-    if clash:
-        raise ApiError(f"Saat çakışması: cihaz {res_date_s} tarihinde {clash['start_time']}-{clash['end_time']} "
-                       "arasında başka bir randevu için ayrılmış.", 409)
+    try:
+        repeat = int(data.get("repeat_weeks") or 1)
+    except (TypeError, ValueError):
+        raise ApiError("Tekrar sayısı geçersiz.")
+    if not 1 <= repeat <= 12:
+        raise ApiError("Haftalık tekrar 1 ile 12 arasında olmalıdır.")
+    skip_invalid = bool(data.get("skip_invalid"))
 
     # Onay akisi
     if u["role"] == "student":
@@ -1380,16 +1554,38 @@ def api_reservation_create():
         advisor_id, adv = u["id"], None
         status = "pending_lab"
 
-    cur = db.execute(
-        "INSERT INTO reservations (user_id,device_id,advisor_id,date,start_time,end_time,project_title,purpose,"
-        "status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (u["id"], device_id, advisor_id, res_date_s, start, end, project_title, purpose, status, now_str()))
-    db.commit()
-    rid = cur.lastrowid
-    audit("RANDEVU_OLUSTUR", f"#{rid} {dev['name']} {res_date_s} {start}-{end}")
+    series_id = uuid.uuid4().hex[:12] if repeat > 1 else None
+    created, failures = [], []
+    for i in range(repeat):
+        d_i = first_date + timedelta(weeks=i)
+        try:
+            check_booking(db, u, dev, d_i, start, end)
+        except ApiError as err:
+            if repeat == 1:
+                raise
+            failures.append({"date": d_i.isoformat(), "error": err.message})
+            continue
+        cur = db.execute(
+            "INSERT INTO reservations (user_id,device_id,advisor_id,date,start_time,end_time,project_title,purpose,"
+            "status,created_at,series_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (u["id"], device_id, advisor_id, d_i.isoformat(), start, end, project_title, purpose, status,
+             now_str(), series_id))
+        created.append((cur.lastrowid, d_i.isoformat()))
 
-    info = (f"Talep No: #{rid}\nTalep Eden: {u['full_name']}\nCihaz: {dev['name']} ({dev['lab_name']})\n"
-            f"Tarih: {res_date_s} {start}-{end}\nProje: {project_title}\nAmaç: {purpose or '-'}")
+    if failures and (not skip_invalid or not created):
+        db.rollback()
+        msg = ("Tekrarlanan randevuların hiçbir tarihi uygun değil." if len(failures) == repeat
+               else "Tekrarlanan randevuların bazı tarihleri uygun değil.")
+        return jsonify(error=msg, failures=failures, possible=repeat - len(failures)), 409
+    db.commit()
+
+    ids = [c[0] for c in created]
+    dates = ", ".join(c[1] for c in created)
+    audit("RANDEVU_OLUSTUR", f"#{', #'.join(map(str, ids))} {dev['name']} {dates} {start}-{end}"
+          + (f" (seri, {len(ids)} hafta)" if series_id else ""))
+
+    info = (f"Talep No: #{', #'.join(map(str, ids))}\nTalep Eden: {u['full_name']}\nCihaz: {dev['name']} "
+            f"({dev['lab_name']})\nTarih: {dates}\nSaat: {start}-{end}\nProje: {project_title}\nAmaç: {purpose or '-'}")
     if adv:
         notify(adv["email"], "LABNET: Onayınızı bekleyen randevu talebi",
                f"Sayın {adv['full_name']},\n\nDanışmanı olduğunuz öğrencinin yeni bir cihaz randevu talebi "
@@ -1398,7 +1594,8 @@ def api_reservation_create():
         mgr = db.execute("SELECT email FROM users WHERE id=?", (dev["manager_id"],)).fetchone()
         if mgr:
             notify(mgr["email"], "LABNET: Onayınızı bekleyen randevu talebi", info)
-    return jsonify(ok=True, id=rid, status=status, status_label=RES_STATUS_LABELS[status])
+    return jsonify(ok=True, id=ids[0], ids=ids, series_id=series_id, skipped=failures, status=status,
+                   status_label=RES_STATUS_LABELS[status])
 
 
 def _decision(data):
@@ -1408,26 +1605,38 @@ def _decision(data):
     note = s(data, "note", max_len=1000)
     if decision == "reject" and not note:
         raise ApiError("Reddetme işleminde gerekçe notu zorunludur.")
-    return decision, note
+    return decision, note, bool(data.get("series"))
+
+
+def _series_targets(r, status):
+    """Seri secildiyse ayni seride ayni asamada bekleyen randevular, degilse yalnizca kendisi."""
+    if not r["series_id"]:
+        return [r]
+    return get_db().execute(RES_SELECT + " WHERE r.series_id=? AND r.status=? ORDER BY r.date",
+                            (r["series_id"], status)).fetchall()
 
 
 @app.route("/api/reservations/<int:res_id>/advisor", methods=["POST"])
 @login_required("advisor", "admin")
 def api_res_advisor(res_id):
     u = current_user()
-    decision, note = _decision(body())
+    decision, note, series = _decision(body())
     r = get_reservation(res_id)
     if r["status"] != "pending_advisor":
         raise ApiError("Bu talep danışman onayı aşamasında değil.")
     if r["advisor_id"] != u["id"] and u["role"] != "admin":
         raise ApiError("Bu talep size atanmamış.", 403)
+    targets = _series_targets(r, "pending_advisor") if series else [r]
     new_status = "pending_lab" if decision == "approve" else "rejected"
     db = get_db()
-    db.execute("UPDATE reservations SET status=?, advisor_note=? WHERE id=? AND status='pending_advisor'",
-               (new_status, note, res_id))
+    for t in targets:
+        db.execute("UPDATE reservations SET status=?, advisor_note=? WHERE id=? AND status='pending_advisor'",
+                   (new_status, note, t["id"]))
     db.commit()
-    audit("DANISMAN_" + ("ONAY" if decision == "approve" else "RET"), f"#{res_id} {r['device_name']} - {note}")
-    head = f"#{res_id} {r['device_name']} {r['date']} {r['start_time']}-{r['end_time']}"
+    ids = ", ".join(f"#{t['id']}" for t in targets)
+    dates = ", ".join(t["date"] for t in targets)
+    audit("DANISMAN_" + ("ONAY" if decision == "approve" else "RET"), f"{ids} {r['device_name']} - {note}")
+    head = f"{ids} {r['device_name']} {dates} {r['start_time']}-{r['end_time']}"
     if decision == "approve":
         notify(r["user_email"], "LABNET: Talebiniz danışman tarafından onaylandı",
                f"{head}\n\nTalebiniz danışmanınız tarafından onaylandı ve laboratuvar sorumlusu onayına iletildi."
@@ -1440,14 +1649,14 @@ def api_res_advisor(res_id):
     else:
         notify(r["user_email"], "LABNET: Talebiniz reddedildi",
                f"{head}\n\nTalebiniz danışmanınız tarafından reddedildi.\nGerekçe: {note}")
-    return jsonify(ok=True, status=new_status)
+    return jsonify(ok=True, status=new_status, count=len(targets))
 
 
 @app.route("/api/reservations/<int:res_id>/lab", methods=["POST"])
 @login_required("lab_manager", "admin")
 def api_res_lab(res_id):
     u = current_user()
-    decision, note = _decision(body())
+    decision, note, series = _decision(body())
     r = get_reservation(res_id)
     if r["status"] != "pending_lab":
         raise ApiError("Bu talep laboratuvar onayı aşamasında değil.")
@@ -1455,33 +1664,45 @@ def api_res_lab(res_id):
         raise ApiError("Bu laboratuvarın sorumlusu değilsiniz.", 403)
     if decision == "approve" and r["device_status"] != "active":
         raise ApiError("Cihaz şu anda aktif değil; talep onaylanamaz.")
+    targets = _series_targets(r, "pending_lab") if series else [r]
     new_status = "approved" if decision == "approve" else "rejected"
     db = get_db()
-    db.execute("UPDATE reservations SET status=?, lab_note=? WHERE id=? AND status='pending_lab'",
-               (new_status, note, res_id))
+    for t in targets:
+        db.execute("UPDATE reservations SET status=?, lab_note=? WHERE id=? AND status='pending_lab'",
+                   (new_status, note, t["id"]))
     db.commit()
-    audit("LAB_" + ("ONAY" if decision == "approve" else "RET"), f"#{res_id} {r['device_name']} - {note}")
-    head = f"#{res_id} {r['device_name']} {r['date']} {r['start_time']}-{r['end_time']}"
+    ids = ", ".join(f"#{t['id']}" for t in targets)
+    dates = ", ".join(t["date"] for t in targets)
+    audit("LAB_" + ("ONAY" if decision == "approve" else "RET"), f"{ids} {r['device_name']} - {note}")
+    head = f"{ids} {r['device_name']} {dates} {r['start_time']}-{r['end_time']}"
     if decision == "approve":
         notify(r["user_email"], "LABNET: Randevunuz onaylandı",
                f"{head}\n\nRandevunuz laboratuvar sorumlusu tarafından onaylandı.\nNot: {note or '-'}")
     else:
         notify(r["user_email"], "LABNET: Talebiniz reddedildi",
                f"{head}\n\nTalebiniz laboratuvar sorumlusu tarafından reddedildi.\nGerekçe: {note}")
-    return jsonify(ok=True, status=new_status)
+    return jsonify(ok=True, status=new_status, count=len(targets))
 
 
 @app.route("/api/reservations/<int:res_id>/cancel", methods=["POST"])
 @login_required()
 def api_res_cancel(res_id):
     u = current_user()
+    data = request.get_json(silent=True) or {}
     r = get_reservation(res_id)
     if not res_out(r, u)["can_cancel"]:
         raise ApiError("Bu randevu iptal edilemez.")
     db = get_db()
-    db.execute("UPDATE reservations SET status='cancelled' WHERE id=?", (res_id,))
+    targets = [r]
+    if data.get("series") and r["series_id"]:
+        rows = db.execute(RES_SELECT + " WHERE r.series_id=? AND r.date>=? ORDER BY r.date",
+                          (r["series_id"], r["date"])).fetchall()
+        targets = [x for x in rows if res_out(x, u)["can_cancel"]]
+    for t in targets:
+        db.execute("UPDATE reservations SET status='cancelled' WHERE id=?", (t["id"],))
     db.commit()
-    audit("RANDEVU_IPTAL", f"#{res_id} {r['device_name']} {r['date']} {r['start_time']}")
+    ids = ", ".join(f"#{t['id']}" for t in targets)
+    audit("RANDEVU_IPTAL", f"{ids} {r['device_name']} {', '.join(t['date'] for t in targets)} {r['start_time']}")
     to = []
     if r["status"] == "pending_advisor" and r["advisor_id"] != u["id"]:
         a = db.execute("SELECT email FROM users WHERE id=?", (r["advisor_id"],)).fetchone()
@@ -1490,9 +1711,24 @@ def api_res_cancel(res_id):
         m = db.execute("SELECT email FROM users WHERE id=?", (r["manager_id"],)).fetchone()
         to.append(m["email"] if m else None)
     notify(to, "LABNET: Randevu iptal edildi",
-           f"#{res_id} {r['device_name']} {r['date']} {r['start_time']}-{r['end_time']} randevusu "
-           f"{r['user_name']} tarafından iptal edildi.")
-    return jsonify(ok=True)
+           f"{ids} {r['device_name']} {', '.join(t['date'] for t in targets)} {r['start_time']}-{r['end_time']} "
+           f"randevusu {r['user_name']} tarafından iptal edildi.")
+    return jsonify(ok=True, count=len(targets))
+
+
+@app.route("/api/reservations/<int:res_id>/start", methods=["POST"])
+@login_required()
+def api_res_start(res_id):
+    u = current_user()
+    r = get_reservation(res_id)
+    info = res_out(r, u)
+    if not info["can_start"]:
+        raise ApiError(info.get("start_block") or "Bu randevu için kullanım şu anda başlatılamaz.")
+    db = get_db()
+    db.execute("UPDATE reservations SET started_at=? WHERE id=? AND started_at IS NULL", (now_str(), res_id))
+    db.commit()
+    audit("KULLANIM_BASLADI", f"#{res_id} {r['device_name']} ({r['user_name']})")
+    return jsonify(ok=True, started_at=now_str())
 
 
 @app.route("/api/reservations/<int:res_id>/complete", methods=["POST"])
@@ -1506,6 +1742,8 @@ def api_res_complete(res_id):
     if not res_out(r, u)["can_complete"]:
         if r["date"] > date.today().isoformat():
             raise ApiError("Randevu tarihi gelmeden kullanım raporu girilemez.")
+        if r["user_id"] == u["id"] and not r["started_at"]:
+            raise ApiError("Önce cihazın başında 'Kullanımı Başlat' düğmesine basmalısınız.")
         raise ApiError("Bu randevuyu tamamlama yetkiniz yok.", 403)
     try:
         hours = float(str(data.get("actual_hours", "")).replace(",", "."))
@@ -1518,17 +1756,30 @@ def api_res_complete(res_id):
     if problem:
         report = "[CİHAZDA SORUN BİLDİRİLDİ] " + report
     db = get_db()
-    db.execute("UPDATE reservations SET status='completed', actual_hours=?, usage_report=? WHERE id=?",
-               (round(hours, 2), report, res_id))
+    now = datetime.now()
+    ended = now_str()
+    new_end = r["end_time"]
+    # Erken bitirilen kullanimda kalan sure diger kullanicilara acilir.
+    if r["started_at"] and r["date"] == now.date().isoformat():
+        cur_min = now.hour * 60 + now.minute + (1 if now.second else 0)
+        if minutes(r["start_time"]) < cur_min < minutes(r["end_time"]):
+            new_end = f"{cur_min // 60:02d}:{cur_min % 60:02d}"
+    db.execute("UPDATE reservations SET status='completed', actual_hours=?, usage_report=?, ended_at=?, end_time=? "
+               "WHERE id=?", (round(hours, 2), report, ended, new_end, res_id))
+    if problem:
+        db.execute("INSERT INTO device_issues (device_id,user_id,description,status,created_at) VALUES (?,?,?,?,?)",
+                   (r["device_id"], u["id"], f"#{res_id} kullanım raporundan: {report}", "open", ended))
     db.commit()
-    audit("RANDEVU_TAMAMLANDI", f"#{res_id} {r['device_name']} {hours:g} saat" + (" - SORUN BİLDİRİLDİ" if problem else ""))
+    freed = f" Erken bitirildi, {new_end}-{r['end_time']} arası serbest bırakıldı." if new_end != r["end_time"] else ""
+    audit("RANDEVU_TAMAMLANDI", f"#{res_id} {r['device_name']} {hours:g} saat" +
+          (" - SORUN BİLDİRİLDİ" if problem else "") + freed)
     if problem:
         m = db.execute("SELECT email FROM users WHERE id=?", (r["manager_id"],)).fetchone()
         if m:
             notify(m["email"], f"LABNET: {r['device_name']} için sorun bildirimi",
                    f"#{res_id} {r['date']} {r['start_time']}-{r['end_time']} kullanımında {r['user_name']} "
                    f"cihazla ilgili sorun bildirdi:\n\n{report}")
-    return jsonify(ok=True)
+    return jsonify(ok=True, freed=bool(freed))
 
 
 @app.route("/api/calendar")
@@ -1564,12 +1815,296 @@ def api_calendar():
         staff = u["role"] == "admin" or r["manager_id"] == u["id"] or r["advisor_id"] == u["id"]
         item = {"id": r["id"], "date": r["date"], "start_time": r["start_time"], "end_time": r["end_time"],
                 "status": r["status"], "status_label": RES_STATUS_LABELS[r["status"]],
-                "device_id": r["device_id"], "device_name": r["device_name"], "mine": mine}
+                "device_id": r["device_id"], "device_name": r["device_name"], "mine": mine,
+                "in_progress": r["status"] == "approved" and bool(r["started_at"]) and not r["ended_at"]}
         if mine or staff:
             item["user_name"] = r["user_name"]
             item["project_title"] = r["project_title"]
         out.append(item)
     return jsonify(start=start.isoformat(), days=days, items=out)
+
+
+# --------------------------------------------------------------------------
+# Ariza bildirimleri
+# --------------------------------------------------------------------------
+
+@app.route("/api/devices/<int:device_id>/issues", methods=["POST"])
+@login_required()
+def api_issue_create(device_id):
+    u = current_user()
+    data = body()
+    text = s(data, "description", True, 1500, "Arıza açıklaması")
+    db = get_db()
+    dev = db.execute("SELECT d.*, l.manager_id FROM devices d JOIN laboratories l ON l.id=d.lab_id WHERE d.id=?",
+                     (device_id,)).fetchone()
+    if not dev:
+        raise ApiError("Cihaz bulunamadı.", 404)
+    cur = db.execute("INSERT INTO device_issues (device_id,user_id,description,status,created_at) VALUES (?,?,?,?,?)",
+                     (device_id, u["id"], text, "open", now_str()))
+    db.commit()
+    audit("ARIZA_BILDIRIMI", f"#{cur.lastrowid} {dev['name']}: {text}")
+    mgr = db.execute("SELECT email FROM users WHERE id=?", (dev["manager_id"],)).fetchone()
+    if mgr:
+        notify(mgr["email"], f"LABNET: {dev['name']} için arıza bildirimi",
+               f"Bildiren: {u['full_name']} ({u['email']})\nCihaz: {dev['name']} ({dev['serial_no'] or '-'})\n\n{text}")
+    return jsonify(ok=True, id=cur.lastrowid)
+
+
+@app.route("/api/issues")
+@login_required()
+def api_issues():
+    u = current_user()
+    db = get_db()
+    q = ("SELECT i.*, d.name AS device_name, d.status AS device_status, l.name AS lab_name, l.manager_id, "
+         "us.full_name AS user_name, rb.full_name AS resolved_by_name FROM device_issues i "
+         "JOIN devices d ON d.id=i.device_id JOIN laboratories l ON l.id=d.lab_id JOIN users us ON us.id=i.user_id "
+         "LEFT JOIN users rb ON rb.id=i.resolved_by")
+    if u["role"] == "admin":
+        rows = db.execute(q + " ORDER BY i.status, i.id DESC LIMIT 300").fetchall()
+    elif u["role"] == "lab_manager":
+        rows = db.execute(q + " WHERE l.manager_id=? OR i.user_id=? ORDER BY i.status, i.id DESC LIMIT 300",
+                          (u["id"], u["id"])).fetchall()
+    else:
+        rows = db.execute(q + " WHERE i.user_id=? ORDER BY i.id DESC LIMIT 100", (u["id"],)).fetchall()
+    out = []
+    for r in rows:
+        dct = row_dict(r)
+        dct["can_resolve"] = dct["status"] == "open" and (u["role"] == "admin" or dct["manager_id"] == u["id"])
+        out.append(dct)
+    return jsonify(out)
+
+
+@app.route("/api/issues/<int:issue_id>", methods=["PATCH"])
+@login_required("admin", "lab_manager")
+def api_issue_resolve(issue_id):
+    u = current_user()
+    data = body()
+    db = get_db()
+    i = db.execute("SELECT i.*, d.name AS device_name, d.lab_id, us.email AS user_email FROM device_issues i "
+                   "JOIN devices d ON d.id=i.device_id JOIN users us ON us.id=i.user_id WHERE i.id=?",
+                   (issue_id,)).fetchone()
+    if not i:
+        raise ApiError("Arıza kaydı bulunamadı.", 404)
+    if not can_manage_lab(u, i["lab_id"]):
+        raise ApiError("Bu kaydı kapatma yetkiniz yok.", 403)
+    if i["status"] != "open":
+        raise ApiError("Bu kayıt zaten kapatılmış.")
+    note = s(data, "resolution_note", True, 1000, "Çözüm notu")
+    db.execute("UPDATE device_issues SET status='resolved', resolution_note=?, resolved_by=?, resolved_at=? WHERE id=?",
+               (note, u["id"], now_str(), issue_id))
+    db.commit()
+    audit("ARIZA_KAPATILDI", f"#{issue_id} {i['device_name']}: {note}")
+    notify(i["user_email"], f"LABNET: {i['device_name']} arıza bildiriminiz kapatıldı",
+           f"#{issue_id} numaralı bildiriminiz kapatıldı.\nÇözüm notu: {note}")
+    return jsonify(ok=True)
+
+
+# --------------------------------------------------------------------------
+# Kullanim raporlari ve Excel aktarimi
+# --------------------------------------------------------------------------
+
+REPORT_GROUPS = {"device": "Cihaz", "lab": "Laboratuvar", "advisor": "Danışman", "user": "Kullanıcı", "month": "Ay"}
+MONTHS_TR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim",
+             "Kasım", "Aralık"]
+
+
+def report_data():
+    u = current_user()
+    if u["role"] == "student":
+        raise ApiError("Raporları görüntüleme yetkiniz yok.", 403)
+    today = date.today()
+    d_from = parse_date(request.args.get("from") or today.replace(day=1).isoformat(), "Başlangıç tarihi")
+    d_to = parse_date(request.args.get("to") or today.isoformat(), "Bitiş tarihi")
+    if d_to < d_from:
+        raise ApiError("Bitiş tarihi başlangıç tarihinden önce olamaz.")
+    group = request.args.get("group") or "device"
+    if group not in REPORT_GROUPS:
+        raise ApiError("Geçersiz gruplama.")
+    where, params = "r.date BETWEEN ? AND ?", [d_from.isoformat(), d_to.isoformat()]
+    if u["role"] == "lab_manager":
+        where += " AND l.manager_id=?"; params.append(u["id"])
+    elif u["role"] == "advisor":
+        where += " AND r.advisor_id=? AND r.user_id<>?"; params += [u["id"], u["id"]]
+    if request.args.get("lab_id"):
+        where += " AND d.lab_id=?"; params.append(int(request.args["lab_id"]))
+    rows = get_db().execute(RES_SELECT + f" WHERE {where} ORDER BY r.date, r.start_time", params).fetchall()
+
+    def key_of(r):
+        if group == "device":
+            return r["device_name"]
+        if group == "lab":
+            return r["lab_name"]
+        if group == "advisor":
+            return r["advisor_name"] if r["advisor_id"] != r["user_id"] else "(Personel talebi)"
+        if group == "user":
+            return r["user_name"]
+        y, m = r["date"][:4], int(r["date"][5:7])
+        return f"{y}-{m:02d} {MONTHS_TR[m - 1]}"
+
+    agg = {}
+    for r in rows:
+        k = key_of(r) or "-"
+        a = agg.setdefault(k, {"key": k, "requests": 0, "completed": 0, "hours": 0.0, "planned_hours": 0.0,
+                               "upcoming": 0, "no_show": 0, "cancelled": 0, "rejected": 0, "pending": 0})
+        a["requests"] += 1
+        dur = (minutes(r["end_time"]) - minutes(r["start_time"])) / 60.0
+        if r["status"] == "completed":
+            a["completed"] += 1
+            a["hours"] += r["actual_hours"] or 0
+            a["planned_hours"] += dur
+        elif r["status"] == "approved":
+            a["upcoming"] += 1
+            a["planned_hours"] += dur
+        elif r["status"] == "cancelled":
+            a["no_show" if r["no_show"] else "cancelled"] += 1
+        elif r["status"] == "rejected":
+            a["rejected"] += 1
+        else:
+            a["pending"] += 1
+    summary = sorted(agg.values(), key=lambda x: x["key"] if group == "month" else -x["hours"])
+    for a in summary:
+        a["hours"] = round(a["hours"], 2)
+        a["planned_hours"] = round(a["planned_hours"], 2)
+        a["no_show_rate"] = round(100.0 * a["no_show"] / (a["completed"] + a["no_show"]), 1) \
+            if (a["completed"] + a["no_show"]) else 0.0
+    totals = {k: round(sum(a[k] for a in summary), 2) for k in
+              ("requests", "completed", "hours", "planned_hours", "upcoming", "no_show", "cancelled", "rejected",
+               "pending")}
+    details = [{"id": r["id"], "date": r["date"], "start_time": r["start_time"], "end_time": r["end_time"],
+                "device_name": r["device_name"], "lab_name": r["lab_name"], "user_name": r["user_name"],
+                "advisor_name": r["advisor_name"] if r["advisor_id"] != r["user_id"] else "",
+                "project_title": r["project_title"],
+                "status": "Gelinmedi" if (r["status"] == "cancelled" and r["no_show"]) else RES_STATUS_LABELS[r["status"]],
+                "actual_hours": r["actual_hours"]} for r in rows]
+    return {"from": d_from.isoformat(), "to": d_to.isoformat(), "group": group, "group_label": REPORT_GROUPS[group],
+            "summary": summary, "totals": totals, "details": details}
+
+
+@app.route("/api/reports/usage")
+@login_required()
+def api_report_usage():
+    return jsonify(report_data())
+
+
+def _col(n):
+    out = ""
+    while n:
+        n, rem = divmod(n - 1, 26)
+        out = chr(65 + rem) + out
+    return out
+
+
+def build_xlsx(sheets):
+    """Harici kutuphane olmadan basit bir .xlsx (Office Open XML) dosyasi uretir.
+    sheets: [(ad, basliklar, satirlar, sutun_genislikleri)]"""
+    def cell(ref, v, style=0):
+        st = f' s="{style}"' if style else ""
+        if isinstance(v, bool):
+            v = "Evet" if v else "Hayır"
+        if isinstance(v, (int, float)):
+            return f'<c r="{ref}"{st}><v>{v}</v></c>'
+        if v is None or v == "":
+            return f'<c r="{ref}"{st}/>'
+        return f'<c r="{ref}" t="inlineStr"{st}><is><t xml:space="preserve">{xml_escape(str(v))}</t></is></c>'
+
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+                   '<Default Extension="xml" ContentType="application/xml"/>'
+                   '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+                   '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+                   + "".join(f'<Override PartName="/xl/worksheets/sheet{i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+                             for i in range(len(sheets))) + '</Types>')
+        z.writestr("_rels/.rels",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+                   '</Relationships>')
+        z.writestr("xl/workbook.xml",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+                   'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
+                   + "".join(f'<sheet name="{xml_escape(name[:31])}" sheetId="{i + 1}" r:id="rId{i + 1}"/>'
+                             for i, (name, *_r) in enumerate(sheets)) + '</sheets></workbook>')
+        z.writestr("xl/_rels/workbook.xml.rels",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   + "".join(f'<Relationship Id="rId{i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{i + 1}.xml"/>'
+                             for i in range(len(sheets)))
+                   + f'<Relationship Id="rId{len(sheets) + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+                   '</Relationships>')
+        # 0: normal, 1: kalin beyaz baslik lacivert zemin, 2: ondalik sayi, 3: kalin toplam satiri
+        z.writestr("xl/styles.xml",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                   '<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts>'
+                   '<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font>'
+                   '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+                   '<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+                   '<fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
+                   '<fill><patternFill patternType="solid"><fgColor rgb="FF142D4C"/><bgColor indexed="64"/></patternFill></fill>'
+                   '<fill><patternFill patternType="solid"><fgColor rgb="FFE3F3F1"/><bgColor indexed="64"/></patternFill></fill></fills>'
+                   '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'
+                   '<border><left style="thin"><color rgb="FFD0D7E0"/></left><right style="thin"><color rgb="FFD0D7E0"/></right>'
+                   '<top style="thin"><color rgb="FFD0D7E0"/></top><bottom style="thin"><color rgb="FFD0D7E0"/></bottom><diagonal/></border></borders>'
+                   '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+                   '<cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+                   '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+                   '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>'
+                   '<xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+                   '<xf numFmtId="164" fontId="2" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1"/>'
+                   '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>')
+        for i, (name, headers, rows, widths, *rest) in enumerate(sheets):
+            total_row = rest[0] if rest else None
+            xml = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                   '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                   '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+                   '<cols>' + "".join(f'<col min="{j + 1}" max="{j + 1}" width="{w}" customWidth="1"/>'
+                                      for j, w in enumerate(widths)) + '</cols><sheetData>']
+            xml.append('<row r="1">' + "".join(cell(f"{_col(j + 1)}1", h, 1) for j, h in enumerate(headers)) + '</row>')
+            all_rows = list(rows) + ([total_row] if total_row else [])
+            for ri, row in enumerate(all_rows, start=2):
+                is_total = total_row is not None and ri == len(all_rows) + 1
+                cells = []
+                for j, v in enumerate(row):
+                    style = (4 if isinstance(v, float) else 3) if is_total else (2 if isinstance(v, float) else 0)
+                    cells.append(cell(f"{_col(j + 1)}{ri}", v, style))
+                xml.append(f'<row r="{ri}">' + "".join(cells) + '</row>')
+            last = _col(len(headers)) + str(len(rows) + 1)
+            xml.append(f'</sheetData><autoFilter ref="A1:{last}"/></worksheet>' if rows else '</sheetData></worksheet>')
+            z.writestr(f"xl/worksheets/sheet{i + 1}.xml", "".join(xml))
+    return buf.getvalue()
+
+
+@app.route("/api/reports/usage.xlsx")
+@login_required()
+def api_report_usage_xlsx():
+    d = report_data()
+    sum_headers = [d["group_label"], "Talep", "Tamamlanan", "Gerçekleşen Saat", "Planlanan Saat", "Yaklaşan Onaylı",
+                   "Gelinmedi", "Gelinmeme Oranı (%)", "İptal", "Red", "Onay Bekleyen"]
+    sum_rows = [[a["key"], a["requests"], a["completed"], float(a["hours"]), float(a["planned_hours"]), a["upcoming"],
+                 a["no_show"], float(a["no_show_rate"]), a["cancelled"], a["rejected"], a["pending"]] for a in d["summary"]]
+    t = d["totals"]
+    total = ["TOPLAM", int(t["requests"]), int(t["completed"]), float(t["hours"]), float(t["planned_hours"]),
+             int(t["upcoming"]), int(t["no_show"]),
+             float(round(100.0 * t["no_show"] / (t["completed"] + t["no_show"]), 1) if (t["completed"] + t["no_show"]) else 0.0),
+             int(t["cancelled"]), int(t["rejected"]), int(t["pending"])]
+    det_headers = ["No", "Tarih", "Başlangıç", "Bitiş", "Cihaz", "Laboratuvar", "Kullanıcı", "Danışman", "Proje",
+                   "Durum", "Gerçekleşen Saat"]
+    det_rows = [[x["id"], x["date"], x["start_time"], x["end_time"], x["device_name"], x["lab_name"], x["user_name"],
+                 x["advisor_name"], x["project_title"], x["status"],
+                 float(x["actual_hours"]) if x["actual_hours"] is not None else ""] for x in d["details"]]
+    data = build_xlsx([
+        ("Özet", sum_headers, sum_rows, [34, 9, 12, 16, 15, 15, 11, 18, 8, 8, 14], total),
+        ("Ayrıntı", det_headers, det_rows, [7, 12, 10, 9, 32, 34, 22, 24, 40, 26, 16]),
+    ])
+    audit("RAPOR_INDIRILDI", f"Kullanım raporu {d['from']} - {d['to']} ({d['group_label']})")
+    name = f"labnet-kullanim-{d['from']}_{d['to']}.xlsx"
+    return send_file(BytesIO(data), as_attachment=True, download_name=name,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 # --------------------------------------------------------------------------
@@ -1618,6 +2153,9 @@ def api_settings_put():
             val = "" if val is None else str(val).strip()
         if key in SECRET_SETTINGS and val == "" and not data.get(key + "_clear"):
             continue  # bos birakildiysa mevcut parolayi koru
+        if key in ("noshow_minutes", "checkin_early_minutes"):
+            if not val.isdigit() or not 0 <= int(val) <= 240:
+                raise ApiError("Dakika değerleri 0 ile 240 arasında bir sayı olmalıdır.")
         if key in ("ldap_port", "smtp_port"):
             if not val.isdigit() or not 1 <= int(val) <= 65535:
                 raise ApiError("Port 1-65535 arasında bir sayı olmalıdır.")
