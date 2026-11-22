@@ -5,7 +5,7 @@
 | `yesil-eller/` | AnkaraKA Kırsal Kalkınma başvurusu "Yeşil Eller" (Kalecik Ziraat Odası serası): ana metin, ön başvuru özeti |
 | `yesil-eller/imzaya-gidecek/` | Belediye, DÖSİM, İl Tarım niyet mektupları ve Ziraat Odası meclis kararı taslakları |
 | `besi-rasyon/` | Besi Rasyon uygulaması (Android, Windows, web) |
-| `labnet/` | LABNET laboratuvar ve cihaz rezervasyon sistemi (Flask, kampüs içi) |
+| LABNET | Laboratuvar ve cihaz rezervasyon sistemi: ayrı depoda, https://github.com/nuhbektas-max/Labnet |
 | `sunu/` | Besi sığırı bakım ve besleme sunusu |
 | `docs/` | OmniRoute + Claude Code kılavuzu |
 | `.claude/` | Claude'un ajanları ve becerileri |
